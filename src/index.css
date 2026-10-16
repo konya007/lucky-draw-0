@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #07070a;
+  --color-ink-2: #0e0e13;
+  --color-velvet: #7a0a12;
+  --color-brass: #b8893b;
+  --color-brass-hi: #f2d28a;
+  --color-paper: #f5efe4;
+  --color-muted: #9a9183;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html, body, #root { height: 100%; margin: 0; background: #07070a; color: #f5efe4; overflow: hidden; }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; touch-action: none; }
+canvas { display: block; }
+.scroll-thin::-webkit-scrollbar { width: 6px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: #b8893b55; border-radius: 3px; }
+.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* history: tickets fly out of the keepsake box (bottom centre) and land tilted on the table */
+@keyframes ticket-fly {
+  0% { opacity: 0; transform: translate(var(--fx, 0), 70vh) rotate(-25deg) scale(0.35); }
+  70% { opacity: 1; transform: translate(0, -10px) rotate(calc(var(--r) + 3deg)) scale(1.02); }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+.ticket-fly { opacity: 0; animation: ticket-fly 0.75s cubic-bezier(0.2, 0.8, 0.25, 1) forwards; }
+@media (prefers-reduced-motion: reduce) { .ticket-fly { animation-duration: 0.01s; } }
