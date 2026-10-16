@@ -83,6 +83,8 @@ interface GameState {
   historyOpen: boolean
   /** first-time "drag the crank" line visible */
   hint: boolean
+  /** the list editor is shown (after "Bắt đầu quay" on the home screen) */
+  editorOpen: boolean
   /** cards flying from the editor into the balls (PACKING) */
   packing: { cards: PackCard[] } | null
   setPhase: (p: Phase) => boolean
@@ -114,6 +116,7 @@ export const useGameStore = create<GameState>()(
       settingsOpen: false,
       historyOpen: false,
       hint: false,
+      editorOpen: false,
       packing: null,
       setPhase: (p) => {
         const cur = get().phase

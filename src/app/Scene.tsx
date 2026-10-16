@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { AdaptiveDpr, Environment, Html, Lightformer, PerformanceMonitor, useProgress } from '@react-three/drei'
+import { Environment, Html, Lightformer, PerformanceMonitor, useProgress } from '@react-three/drei'
 import { Physics } from '@react-three/rapier'
 import { PCFSoftShadowMap } from 'three'
 import { Stage } from '../scene/Stage'
@@ -22,7 +22,7 @@ import { CameraDirector } from '../director/CameraDirector'
 import { director } from '../director/Director'
 import { useGameStore } from '../store/useGameStore'
 import { useSettingsStore } from '../store/useSettingsStore'
-import { QUALITY } from '../quality/qualityPresets'
+import { useQuality } from '../quality/qualityPresets'
 import { requestLevel, useAutoQualityFlush } from '../quality/useAutoQuality'
 import { CRANK } from '../scene/layout'
 
@@ -71,21 +71,36 @@ function CrankHint() {
   )
 }
 
+/**
+ * Render resolution. Applied imperatively whenever the editor opens/closes or the quality changes,
+ * so the stage never stays stuck at the editor's low resolution (the old AdaptiveDpr captured it).
+ * Behind the editor/home screen the stage renders at half resolution; on stage it uses the preset's
+ * range clamped to the screen's devicePixelRatio.
+ */
+function DprController({ editing, range }: { editing: boolean; range: [number, number] }) {
+  const setDpr = useThree((s) => s.setDpr)
+  useEffect(() => {
+    const native = window.devicePixelRatio || 1
+    setDpr(editing ? 0.5 : Math.min(Math.max(native, range[0]), range[1]))
+  }, [editing, range, setDpr])
+  return null
+}
+
 let lastMiss = 0
 let qualityLocked = false
 
 export default function Scene({ paused }: { paused: boolean }) {
-  const level = useSettingsStore((s) => s.level)
   const quality = useSettingsStore((s) => s.quality)
   // the editor covers the stage: render the curtain behind it at low resolution
-  const editing = useGameStore((s) => s.phase === 'EDITING')
-  const q = QUALITY[level]
+  // only while the list editor actually covers the stage (not on the home screen)
+  const editing = useGameStore((s) => s.phase === 'EDITING' && s.editorOpen)
+  const q = useQuality()
   useAutoQualityFlush()
 
   return (
     <Canvas
       shadows={{ type: PCFSoftShadowMap }}
-      dpr={editing ? 0.5 : q.dpr}
+      dpr={q.dpr}
       frameloop={paused ? 'never' : 'always'}
       gl={{ antialias: false, powerPreference: 'high-performance', stencil: false }}
       camera={{ position: [0, 1.85, 4.6], fov: 35 }}
@@ -106,9 +121,7 @@ export default function Scene({ paused }: { paused: boolean }) {
           onDecline={() => !qualityLocked && requestLevel(-1)}
           onIncline={() => !qualityLocked && requestLevel(1)}
           onFallback={() => (qualityLocked = true)}
-        >
-          <AdaptiveDpr />
-        </PerformanceMonitor>
+        />
       )}
       <Suspense fallback={null}>
         {/* dark studio environment: only so brass and clearcoat have something to reflect */}
@@ -137,6 +150,7 @@ export default function Scene({ paused }: { paused: boolean }) {
         <Effects />
         <Precompile />
       </Suspense>
+      <DprController editing={editing} range={q.dpr} />
       <CameraDirector />
       <DirectorTicker />
       {debug && (

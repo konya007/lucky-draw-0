@@ -1,12 +1,26 @@
+import { useEffect, useState } from 'react'
 import { useGameStore } from '../store/useGameStore'
 
-/** Minimal loading indicator: a thin brass line along the top while the stage builds in the background. */
+/** Full-screen loading screen while the stage, model and shaders load; fades out when ready. */
 export function LoadingBar() {
   const ready = useGameStore((s) => s.sceneReady)
   const p = useGameStore((s) => s.loadProgress)
+  const title = useGameStore((s) => s.title)
+  const [mounted, setMounted] = useState(true)
+  useEffect(() => {
+    if (!ready) return
+    const t = setTimeout(() => setMounted(false), 1100)
+    return () => clearTimeout(t)
+  }, [ready])
+  if (!mounted) return null
   return (
-    <div className={`pointer-events-none fixed inset-x-0 top-0 z-50 h-[2px] transition-opacity duration-700 ${ready ? 'opacity-0' : 'opacity-100'}`}>
-      <div className="h-full bg-gradient-to-r from-brass/0 via-brass-hi to-brass transition-[width] duration-300" style={{ width: `${Math.max(4, p)}%` }} />
+    <div className={`fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink transition-opacity duration-1000 ${ready ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
+      <div className="text-[10px] tracking-[0.6em] text-muted uppercase">Đêm gala · bốc thăm</div>
+      <div className="mt-3 font-serif text-[clamp(2rem,6vw,4rem)] tracking-[0.3em] text-paper">{title || 'GRAND DRAW'}</div>
+      <div className="mt-10 h-px w-[min(22rem,70vw)] overflow-hidden bg-brass/20">
+        <div className="h-full bg-gradient-to-r from-brass to-brass-hi transition-[width] duration-300" style={{ width: `${Math.max(3, p)}%` }} />
+      </div>
+      <div className="mt-3 font-mono text-[11px] tracking-widest text-muted">Đang dựng sân khấu… {Math.round(p)}%</div>
     </div>
   )
 }

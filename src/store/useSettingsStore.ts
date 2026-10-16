@@ -13,6 +13,10 @@ interface SettingsState {
   quality: QualityChoice
   /** ×2 playback for the whole show */
   fast: boolean
+  /** per-option overrides on top of the level (see QualityPreset) */
+  custom: Partial<import('../quality/qualityPresets').QualityPreset>
+  /** render resolution multiplier (0.5–1) */
+  renderScale: number
   /** Level actually rendered (auto mode resolves this at runtime; not persisted). */
   level: QualityLevel
   /** Level the auto-tuner wants; applied only at safe phases. */
@@ -29,6 +33,8 @@ export const useSettingsStore = create<SettingsState>()(
       muted: false,
       quality: 'auto',
       fast: false,
+      custom: {},
+      renderScale: 1,
       // auto starts one notch below High and climbs if the machine keeps up
       level: 'medium',
       pendingLevel: null,
@@ -41,7 +47,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'grand-draw:settings',
-      partialize: (s) => ({ master: s.master, music: s.music, sfx: s.sfx, muted: s.muted, quality: s.quality, fast: s.fast }),
+      partialize: (s) => ({ master: s.master, music: s.music, sfx: s.sfx, muted: s.muted, quality: s.quality, fast: s.fast, custom: s.custom, renderScale: s.renderScale }),
       onRehydrateStorage: () => (s) => {
         if (!s) return
         // ?quality=low|medium|high|ultra|auto overrides the saved choice (handy for testing)

@@ -4,8 +4,7 @@ import { CanvasTexture, Color, RepeatWrapping, SRGBColorSpace, Vector3 } from 't
 import { STAGE } from './layout'
 import { brass, matteBlack } from './materials'
 import { merge, rod } from './geom'
-import { useSettingsStore } from '../store/useSettingsStore'
-import { QUALITY } from '../quality/qualityPresets'
+import { useQuality } from '../quality/qualityPresets'
 import { Curtain } from './Curtain'
 import { Backstage } from './Backstage'
 import { PropLights } from './VFX/PropLights'
@@ -48,8 +47,7 @@ function usePlanks() {
 }
 
 export function Stage() {
-  const level = useSettingsStore((s) => s.level)
-  const q = QUALITY[level]
+  const q = useQuality()
   const planks = usePlanks()
   const width = STAGE.width
   const depth = STAGE.front - STAGE.depthBack

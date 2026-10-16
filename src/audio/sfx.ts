@@ -6,6 +6,5 @@ export const SFX = [
 ] as const
 export type SfxName = (typeof SFX)[number]
 
-/** Loops whose gain is driven continuously (0..1). */
 export const LOOPS = ['music', 'room', 'drumroll'] as const
 export type LoopName = (typeof LOOPS)[number]

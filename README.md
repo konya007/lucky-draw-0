@@ -2,7 +2,7 @@
 
 Web game bốc thăm 3D kiểu sân khấu gala: lồng cầu đồng, rèm nhung, đèn spotlight, và một cô dẫn chương trình (nhân vật anime) tự quay số. Màn soạn danh sách là UI 2D duy nhất. Mọi thao tác khác đi qua vật thể 3D: cần quay, quả cầu, vé, radio, bảng kẹp giấy, hộp vé.
 
-Stack: Vite, React 18, TypeScript (strict), React Three Fiber, drei, Rapier, postprocessing, GSAP, Zustand, Tailwind v4, Web Audio.
+Stack: Vite, React 18, TypeScript (strict), React Three Fiber, drei, Rapier (chỉ cho quả cầu lăn xuống máng), postprocessing, GSAP, Zustand, Tailwind v4, Web Audio.
 
 ## Chạy
 
@@ -39,6 +39,7 @@ Vì site có thể nằm dưới một sub-path, mọi file trong `public/` ph�
 
 ## Cách chơi
 
+0. Mở web sẽ thấy màn tải, rồi màn chính với 2 nút **Bắt đầu quay** và **Cài đặt**. Bấm **Bắt đầu quay** để mở màn soạn danh sách.
 1. Dán danh sách, mỗi dòng một mục. Có thể dùng `Tên | Giải | Ghi chú`, Tab hoặc CSV. Bấm **Tiến hành quay số**.
 2. Cầu được đóng gói, rèm mở, cô dẫn chương trình bay ra, các quả cầu bay vào lồng.
 3. Chạm vào **cần quay** (thứ đang phát sáng): bấm một lần thì cô tự quay, còn kéo vòng tròn thì lực quay theo tay bạn.
@@ -104,13 +105,22 @@ Sửa file này rồi tải lại trang (không cần build lại).
 
 ## Chuyển động lồng cầu
 
-Lồng quay theo phương trình vật lý: quán tính, ma sát ổ trục và một quả nặng lệch tâm ở cửa ra. Khi gần dừng, lồng đung đưa ngược lại 2–3 lần như con lắc rồi mới nằm yên (nắp hướng lên, cửa ra ở phía trước). Tham số nằm trong `src/director/spin.ts` (`G`, `c`, `mu`). Tiếng lách cách đi theo vận tốc thật của các quả cầu, nên tắt đúng lúc cầu dừng.
+Lồng quay theo phương trình vật lý: quán tính, ma sát ổ trục và một quả nặng lệch tâm ở cửa ra. Các quả cầu trong lồng dùng một bộ giải vật lý viết riêng (`src/scene/Balls/ballSystem.ts`): giữ cầu trong mặt cầu, ma sát với thành lồng đang quay, 4 cánh gạt hất cầu lên, va chạm cầu–cầu bằng lưới băm không gian. 200 quả tốn khoảng 1 ms mỗi khung hình. Khi lồng đứng yên và cầu đã nằm yên, bộ giải tự ngủ. Khi gần dừng, lồng đung đưa ngược lại 2–3 lần như con lắc rồi mới nằm yên (nắp hướng lên, cửa ra ở phía trước). Tham số nằm trong `src/director/spin.ts` (`G`, `c`, `mu`). Tiếng va chạm lấy từ các cú va thật mạnh nhất trong mỗi khung hình (tối đa ~25 tiếng/giây), nên luôn khớp với hình.
+
+## Cài đặt
+
+Bấm vào chiếc radio bên trái sân khấu (hoặc rê chuột vào góc dưới phải để hiện nút ⚙ / ×2):
+
+- Âm thanh: Tổng, Nhạc nền, Hiệu ứng, Tắt tiếng.
+- Sân khấu & nhạc nền: **tải lên ảnh nền** (thay ảnh hậu trường) và **tải lên nhạc nền** (thay nhạc mặc định). File được lưu trong IndexedDB của trình duyệt nên tải lại trang vẫn còn. Tải file mới sẽ ghi đè file cũ, nút “Xóa” để quay về mặc định.
+- Đồ họa: Tự động / Thấp / TB / Cao / Ultra. Mục **Tùy chỉnh chi tiết** cho phép chỉnh riêng từng mục trên nền mức đã chọn: độ phân giải, bóng đổ, bóng thật của nhân vật, sàn phản chiếu, luồng sáng, bụi, khói sàn, bloom, DOF, viền màu, hạt phim, khử răng cưa, nhòe chuyển động, lượng pháo giấy. Nút “Đặt lại theo mức đồ họa” để quay về mặc định.
+- Tốc độ ×2 cho toàn bộ màn diễn (phím F).
 
 ## Thay âm thanh
 
 Mọi âm thanh đều được tổng hợp bằng Web Audio, nên dự án chạy được mà không cần file nào. Để thay một âm:
 
-1. Chép file vào `public/audio/`, ví dụ `cymbal.mp3`.
+1. Xem hướng dẫn đầy đủ và danh sách tên âm trong `public/audio/README.md`. Tóm tắt: chép file vào `public/audio/`, ví dụ `cymbal.mp3`.
 2. Khai báo trong `public/audio/manifest.json`:
 
 ```json

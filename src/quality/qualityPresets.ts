@@ -1,4 +1,5 @@
-import type { QualityLevel } from '../store/useSettingsStore'
+import { useMemo } from 'react'
+import { useSettingsStore, type QualityLevel } from '../store/useSettingsStore'
 
 export interface QualityPreset {
   dpr: [number, number]
@@ -15,8 +16,6 @@ export interface QualityPreset {
   chroma: boolean
   grain: boolean
   motionBlur: boolean
-  dynamicBalls: number
-  flyLights: number
   confetti: number
   hostShadow: boolean
   hostRim: boolean
@@ -24,32 +23,43 @@ export interface QualityPreset {
   /** Skeleton update rate when host is idle/far (Hz, 0 = every frame) */
   skeletonHz: number
   fogLayers: number
-  msaa: number
+  /** SMAA edge anti-aliasing (MSAA is never used: it breaks the depth-of-field pass) */
+  antialias: boolean
 }
 
 export const QUALITY: Record<QualityLevel, QualityPreset> = {
   low: {
     dpr: [0.75, 1], shadowSize: 0, followShadow: false, softShadows: false, reflectorRes: 0,
-    cones: 'off', dustInCones: false, bloom: false, dof: false, chroma: false, grain: false, motionBlur: false,
-    dynamicBalls: 40, flyLights: 0, confetti: 120, hostShadow: false, hostRim: false, fullIK: false, skeletonHz: 30,
-    fogLayers: 0, msaa: 0,
+    cones: 'off', dustInCones: false, bloom: false, dof: false, chroma: false, grain: false, motionBlur: false, confetti: 120, hostShadow: false, hostRim: false, fullIK: false, skeletonHz: 30,
+    fogLayers: 0, antialias: false,
   },
   medium: {
     dpr: [1, 1.25], shadowSize: 1024, followShadow: false, softShadows: false, reflectorRes: 0,
-    cones: 'main', dustInCones: false, bloom: true, dof: false, chroma: false, grain: false, motionBlur: false,
-    dynamicBalls: 80, flyLights: 0, confetti: 200, hostShadow: true, hostRim: false, fullIK: false, skeletonHz: 0,
-    fogLayers: 0, msaa: 0,
+    cones: 'main', dustInCones: false, bloom: true, dof: false, chroma: false, grain: false, motionBlur: false, confetti: 200, hostShadow: true, hostRim: false, fullIK: false, skeletonHz: 0,
+    fogLayers: 0, antialias: true,
   },
   high: {
     dpr: [1, 1.5], shadowSize: 1024, followShadow: false, softShadows: false, reflectorRes: 0,
-    cones: 'all', dustInCones: false, bloom: true, dof: true, chroma: true, grain: false, motionBlur: false,
-    dynamicBalls: 120, flyLights: 0, confetti: 300, hostShadow: true, hostRim: true, fullIK: false, skeletonHz: 0,
-    fogLayers: 1, msaa: 0,
+    cones: 'all', dustInCones: false, bloom: true, dof: true, chroma: true, grain: false, motionBlur: false, confetti: 300, hostShadow: true, hostRim: true, fullIK: false, skeletonHz: 0,
+    fogLayers: 1, antialias: true,
   },
   ultra: {
     dpr: [1, 2], shadowSize: 2048, followShadow: true, softShadows: true, reflectorRes: 512,
-    cones: 'all', dustInCones: true, bloom: true, dof: true, chroma: true, grain: true, motionBlur: true,
-    dynamicBalls: 200, flyLights: 0, confetti: 400, hostShadow: true, hostRim: true, fullIK: true, skeletonHz: 0,
-    fogLayers: 3, msaa: 2,
+    cones: 'all', dustInCones: true, bloom: true, dof: true, chroma: true, grain: true, motionBlur: true, confetti: 400, hostShadow: true, hostRim: true, fullIK: true, skeletonHz: 0,
+    fogLayers: 3, antialias: true,
   },
+}
+
+/** Options the player can override one by one on top of the chosen level. */
+export type QualityOverrides = Partial<QualityPreset>
+
+/** Effective preset = chosen/auto level + the player's per-option overrides + render scale. */
+export function useQuality(): QualityPreset {
+  const level = useSettingsStore((s) => s.level)
+  const custom = useSettingsStore((s) => s.custom)
+  const scale = useSettingsStore((s) => s.renderScale)
+  return useMemo(() => {
+    const q = { ...QUALITY[level], ...custom }
+    return { ...q, dpr: [Math.max(0.4, q.dpr[0] * scale), Math.max(0.4, q.dpr[1] * scale)] as [number, number] }
+  }, [level, custom, scale])
 }

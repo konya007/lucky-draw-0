@@ -1,6 +1,7 @@
 import { useSettingsStore } from '../store/useSettingsStore'
 import { assetUrl } from '../lib/assetUrl'
-import type { LoopName, SfxName } from './sfx'
+import { LOOPS, SFX, type LoopName, type SfxName } from './sfx'
+import folderFiles from 'virtual:audio-files'
 
 type V3 = { x: number; y: number; z: number }
 interface PlayOpts {
@@ -26,6 +27,9 @@ class AudioManager {
   private loops = new Map<LoopName, { gain: GainNode; target: number; src: AudioBufferSourceNode }>()
   private voices = new Map<string, number>()
   private unsub: (() => void) | null = null
+  private defaultMusic: AudioBuffer | null = null
+  private customMusic: AudioBuffer | null = null
+  private customMusicBlob: Blob | null = null
 
   async unlock() {
     if (this.ctx) {
@@ -48,6 +52,7 @@ class AudioManager {
     this.unsub = useSettingsStore.subscribe(() => this.applyVolumes())
     this.startLoops()
     void this.loadManifest()
+    void this.applyCustomMusic()
   }
 
   private applyVolumes() {
@@ -61,28 +66,78 @@ class AudioManager {
 
   private async loadManifest() {
     try {
-      const res = await fetch(assetUrl('audio/manifest.json'))
-      const m = (await res.json()) as { files?: Record<string, string> }
+      // 1) files dropped in public/audio named after a sound (hitBall.mp3, music.ogg …)
+      const known = new Set<string>([...SFX, ...LOOPS])
+      const map: Record<string, string> = {}
+      for (const f of folderFiles) {
+        const name = f.replace(/\.[^.]+$/, '')
+        if (known.has(name)) map[name] = f
+      }
+      // 2) manifest.json entries win (for files with other names)
+      try {
+        const m = (await (await fetch(assetUrl('audio/manifest.json'))).json()) as { files?: Record<string, string> }
+        Object.assign(map, m.files ?? {})
+      } catch {
+        /* no manifest */
+      }
       await Promise.all(
-        Object.entries(m.files ?? {}).map(async ([k, f]) => {
-          const buf = await (await fetch(assetUrl(`audio/${f}`))).arrayBuffer()
-          const decoded = await this.ctx!.decodeAudioData(buf)
-          this.files.set(k, decoded)
-          const loop = this.loops.get(k as LoopName)
-          if (loop) {
-            // hot-swap a synthesized loop for the file
-            loop.src.stop()
-            const s = this.ctx!.createBufferSource()
-            s.buffer = decoded
-            s.loop = true
-            s.connect(loop.gain)
-            s.start()
-            loop.src = s
+        Object.entries(map).map(async ([k, f]) => {
+          let decoded: AudioBuffer
+          try {
+            const res = await fetch(assetUrl(`audio/${f}`))
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            decoded = await this.ctx!.decodeAudioData(await res.arrayBuffer())
+          } catch (e) {
+            console.warn(`[audio] could not load public/audio/${f} for "${k}":`, e)
+            return
           }
+          this.files.set(k, decoded)
+          if (k === 'music') {
+            this.defaultMusic = decoded
+            if (!this.customMusic) this.swapLoop('music', decoded)
+          } else if (this.loops.has(k as LoopName)) this.swapLoop(k as LoopName, decoded)
         }),
       )
     } catch {
       /* no overrides: synth only */
+    }
+  }
+
+  /** Replace a running loop's buffer (seamless restart on the same gain node). */
+  private swapLoop(name: LoopName, buf: AudioBuffer) {
+    const loop = this.loops.get(name)
+    if (!loop || !this.ctx) return
+    loop.src.stop()
+    const src = this.ctx.createBufferSource()
+    src.buffer = buf
+    src.loop = true
+    src.connect(loop.gain)
+    src.start()
+    loop.src = src
+  }
+
+  /** Background music uploaded by the user (null = back to the default). Applied now or at unlock. */
+  setCustomMusic(blob: Blob | null) {
+    this.customMusicBlob = blob
+    void this.applyCustomMusic()
+  }
+
+  private async applyCustomMusic() {
+    const ctx = this.ctx
+    if (!ctx) return // applied in unlock()
+    const blob = this.customMusicBlob
+    if (!blob) {
+      this.customMusic = null
+      if (this.defaultMusic) this.swapLoop('music', this.defaultMusic)
+      return
+    }
+    try {
+      const buf = await ctx.decodeAudioData(await blob.arrayBuffer())
+      if (this.customMusicBlob !== blob) return // replaced meanwhile
+      this.customMusic = buf
+      this.swapLoop('music', buf)
+    } catch (e) {
+      console.warn('[audio] could not decode uploaded music', e)
     }
   }
 
@@ -352,7 +407,8 @@ class AudioManager {
     }
     mk('room', this.renderRoom(), this.music)
     mk('drumroll', this.renderDrumroll(), this.sfx)
-    mk('music', this.renderMusic(), this.music)
+    this.defaultMusic = this.renderMusic()
+    mk('music', this.defaultMusic, this.music)
     this.setLoop('room', 0.16, 1)
   }
 

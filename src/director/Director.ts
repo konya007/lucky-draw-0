@@ -401,7 +401,6 @@ class Director {
     })
     this.omegaPeak = peak * 1.2
     spin.onDecelerate = () => this.decelerate()
-    for (const b of ballSystem.balls) if (b.mode === 'cage') b.body.wakeUp()
     await spin.start(peak, fromDrag)
     await this.dispense()
   }
@@ -434,25 +433,21 @@ class Director {
     if (!b) return
     this.drawn = b
     ballSystem.setMode(b, 'exit')
-    b.body.setTranslation(b.pos, true)
     const lip = CHUTE.start.clone().add(new Vector3(0, BALL_RADIUS + 0.004, 0.02))
     await tween(b.pos, { x: OUTLET.point.x, y: OUTLET.point.y, z: OUTLET.point.z, duration: 0.16, ease: 'power2.in' })
     await tween(b.pos, { x: lip.x, y: lip.y, z: lip.z, duration: 0.08, ease: 'none' })
     // the result is decided now, as the ball leaves the cage (crypto RNG)
     g().drawWinner()
     host.express('surprised', 1.2)
-    ballSystem.setMode(b, 'chute')
     const dir = CHUTE.end.clone().sub(CHUTE.start).normalize()
     const sp = vrand(0.9, 1.4)
-    b.body.setLinvel({ x: dir.x * sp + vrand(-0.08, 0.08), y: dir.y * sp, z: dir.z * sp }, true)
-    b.body.setAngvel({ x: vrand(10, 25), y: vrand(-6, 6), z: vrand(-4, 4) }, true)
+    ballSystem.launchChute(b, { x: dir.x * sp + vrand(-0.08, 0.08), y: dir.y * sp, z: dir.z * sp }, { x: vrand(10, 25), y: vrand(-6, 6), z: vrand(-4, 4) })
     audio.play('roll', { vol: 0.6, pos: b.pos })
     gsap.delayedCall(0.6, () => gsap.to(stage, { gate: 0, duration: 0.3, ease: 'power2.in' }))
     // let physics settle it on the velvet
     let still = 0
     await until(() => {
-      const v = b.body.linvel()
-      still = Math.hypot(v.x, v.y, v.z) < 0.03 ? still + 1 : 0
+      still = ballSystem.chuteSpeed() < 0.03 ? still + 1 : 0
       return still > 8
     }, 2.5)
     audio.vibrate(12)
@@ -476,15 +471,15 @@ class Director {
     host.setPose('rest')
     host.setState('walkingToTray')
     host.lookAt(() => b.pos)
-    await host.walk(PATHS.toTray, 1.4)
+    await host.walk(PATHS.toTray, 1.6)
     await host.facePoint(b.pos)
     host.setState('pickingUp')
     audio.play('rustle', { vol: 0.4, pos: host.pos })
     host.crouchT = 0.1
     host.leanT = 0.55
+    host.quick = true // brisk lean-in for the grab
     host.reach('R', () => _v.copy(b.pos).add(_w.set(0, 0.035, 0)))
-    await host.waitUntil(() => host.palm.R.distanceTo(b.pos) < 0.08, 1.8)
-    await wait(0.15)
+    await host.waitUntil(() => host.palm.R.distanceTo(b.pos) < 0.1, 0.9)
     // grab: the ball leaves the instanced pool and becomes the hero mesh attached to the hand
     hero.pos.copy(b.pos)
     hero.quat.copy(b.quat)
@@ -502,6 +497,7 @@ class Director {
     host.reach('R', null)
     host.crouchT = 0
     host.leanT = 0
+    gsap.delayedCall(0.6, () => void (host.quick = false))
     host.setPose('present')
     host.setState('holding')
     host.lookAt(() => hero.pos)
@@ -569,8 +565,6 @@ class Director {
     lightDirector.burst(hero.color)
     host.express('surprised', 0.9)
     gsap.to(hero, { scale: HELD_SCALE, duration: 0.3, ease: 'back.out(3)' })
-    confetti.burst(host.pos.clone().setY(2.6), 400, 1.8)
-    audio.play('confetti', { vol: 0.6 })
     // the ball splits in her hands: the top half leaves with the left hand, light pours out
     gsap.to(hero, { open: 1, duration: 0.8, ease: 'power2.out' })
     this.topFollowL = true
@@ -609,6 +603,9 @@ class Director {
     audio.play('paper', { vol: 0.6 })
     gsap.delayedCall(0.85, () => audio.play('paper', { vol: 0.6, pitch: 1.1 }))
     await tween(ticket, { unfold: 1, duration: 1.7, ease: 'sine.inOut' })
+    // the ticket is open: now the tinsel cannons go off
+    confetti.burst(host.pos.clone().setY(2.6), 400, 1.8)
+    audio.play('confetti', { vol: 0.6 })
     await wait(0.2)
 
     // then holds it up at her right side, turns to us and smiles
@@ -669,7 +666,7 @@ class Director {
     stage.invited = 'ticket'
     audio.play('voiceCongrats', { vol: 0.8, pos: host.pos })
     audio.play('applause', { vol: 0.9 })
-    audio.play('chime', { vol: 0.5 })
+    // audio.play('chime', { vol: 0.5 })
   }
 
   // ------------------------------------------------------------- ticket gestures
@@ -797,7 +794,7 @@ class Director {
       return
     }
     this.nudge?.kill()
-    g().set({ settingsOpen: false, historyOpen: false, hint: false })
+    g().set({ settingsOpen: false, historyOpen: false, hint: false, editorOpen: true })
     stage.invited = 'none'
     gsap.to(stage, { finale: 0, duration: 0.6 })
     ticket.visible = false
@@ -864,7 +861,6 @@ class Director {
   cageTap() {
     if (g().phase !== 'IDLE_READY' || spin.phase !== 'idle') return void (this.busy || audio.play('hitBrass', { vol: 0.4, pos: CAGE.center }))
     this.scheduleNudge()
-    for (const b of ballSystem.balls) if (b.mode === 'cage') b.body.wakeUp()
     gsap
       .timeline()
       .to(cage, { angle: 0.14, duration: 0.12, ease: 'power2.out' })
@@ -931,7 +927,7 @@ class Director {
     const ph = g().phase
     if (ph === 'DECELERATING') {
       shotParams.push = Math.min(1, Math.max(shotParams.push, 1 - w / this.omegaPeak))
-      audio.setLoop('drumroll', 0.15 + shotParams.push * 0.55, 0.2)
+      // audio.setLoop('drumroll', 0.15 + shotParams.push * 0.55, 0.2)
     } else if (ph !== 'BALL_PRESENTED') audio.setLoop('drumroll', 0, 0.4)
   }
 }

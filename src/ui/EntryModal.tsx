@@ -27,7 +27,8 @@ export function EntryModal() {
   const [listH, setListH] = useState(400)
   const listRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const visible = phase === 'EDITING'
+  const editorOpen = useGameStore((s) => s.editorOpen)
+  const visible = phase === 'EDITING' && editorOpen
   const [mounted, setMounted] = useState(visible)
 
   useEffect(() => {

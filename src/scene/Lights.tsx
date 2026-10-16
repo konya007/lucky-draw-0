@@ -5,9 +5,8 @@ import { CAGE, COLORS, TRAY } from './layout'
 import { cage, lights } from '../director/channels'
 import { host } from './Host/useHostAnimator'
 import { LightCone } from './VFX/LightCone'
-import { useSettingsStore } from '../store/useSettingsStore'
 import { useGameStore } from '../store/useGameStore'
-import { QUALITY } from '../quality/qualityPresets'
+import { useQuality } from '../quality/qualityPresets'
 import { audio } from '../audio/audioManager'
 
 
@@ -29,8 +28,7 @@ const fillColor = new Color(COLORS.fill)
 const _v = new Vector3()
 
 export function Lights() {
-  const level = useSettingsStore((s) => s.level)
-  const q = QUALITY[level]
+  const q = useQuality()
   const gl = useThree((s) => s.gl)
   const key = useRef<SpotLight>(null)
   const fillL = useRef<SpotLight>(null)

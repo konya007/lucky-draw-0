@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BackSide, CanvasTexture, Color, FrontSide, Group, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Vector3 } from 'three'
+import { fixZeroNormals } from '../../lib/safeNormals'
 import { useGameStore, type Win } from '../../store/useGameStore'
 import { director } from '../../director/Director'
 import { stage } from '../../director/channels'
@@ -218,6 +219,8 @@ export function Ticket() {
     // keep shading right while the paper bends (tiny mesh, only while folded/unfolding)
     if (u < 1 || !flatNormals.current) {
       geo.computeVertexNormals()
+      // a 180° crease cancels its normals → NaN → black squares through the bloom
+      fixZeroNormals(geo)
       flatNormals.current = u >= 1
     }
     mat.emissiveIntensity = 0.28 + (stage.invited === 'ticket' ? stage.invite * 0.12 : 0)

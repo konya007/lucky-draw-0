@@ -4,6 +4,7 @@ import { curve } from './hostPaths'
 import { clock } from '../../director/channels'
 import { audio } from '../../audio/audioManager'
 import { useGameStore, type HostState } from '../../store/useGameStore'
+import { CAGE, CRANK, PROPS, TRAY } from '../layout'
 
 /** Base bone names (three sanitises spaces to "_" and the export appends "_<index>"). See HostRig.md. */
 export const HOST_BONES = {
@@ -30,6 +31,7 @@ const dampAngle = (a: number, b: number, lambda: number, dt: number) => {
   return a + d * (1 - Math.exp(-lambda * dt))
 }
 const smooth = (t: number) => t * t * (3 - 2 * t)
+const smoothRange = (a: number, b: number, x: number) => smooth(Math.min(1, Math.max(0, (x - a) / (b - a))))
 
 const X = new Vector3(1, 0, 0)
 const Y = new Vector3(0, 1, 0)
@@ -105,6 +107,10 @@ export class HostController {
   twist = 0
   twistT = 0
   sway = 0
+  swayT = 0
+  private waveAmt = 0
+  private clapAmt = 0
+  private handVel = { L: new Vector3(), R: new Vector3() }
   private t = 0
   // ---- arms ----
   pose: ArmPose = 'rest'
@@ -122,11 +128,15 @@ export class HostController {
   /** skirt strand roots + their rest direction around the waist (character space, xz) */
   private skirt: { bone: Object3D; dir: Vector3 }[] = []
   /** 0..1 happy: head tilt + chest bounce */
+  /** brisk mode for grabs: faster body/hand springs */
+  quick = false
   smile = 0
   smileT = 0
   surprise = 0
   surpriseT = 0
   private lookPoint = new Vector3(0, 1.4, 3)
+  private gazeOwned = false
+  private gazeClock = 1.5
   private headAng = { x: 0, y: 0 }
   private headVel = { x: 0, y: 0 }
   // ---- look ----
@@ -291,6 +301,7 @@ export class HostController {
 
   lookAt(getter: Getter | null) {
     this.look = getter
+    this.gazeOwned = false
   }
 
   /** Expression through head/body (no face rig): neutral, happy (tilt + bounce) or surprised (small jolt back). */
@@ -301,6 +312,7 @@ export class HostController {
   }
 
   lookAtCamera() {
+    this.gazeOwned = false
     this.look = () => (this.camera ? this.camera.getWorldPosition(_u) : _u.set(0, 1.5, 5))
   }
 
@@ -364,18 +376,25 @@ export class HostController {
     if (!this.ready) return
 
     // body layers
-    this.crouch = damp(this.crouch, this.crouchT, 4, dt)
-    this.lean = damp(this.lean, this.leanT, 4, dt)
+    // `quick` (grabbing things) tightens the body springs
+    const bodyK = this.quick ? 9 : 4
+    this.crouch = damp(this.crouch, this.crouchT, bodyK, dt)
+    this.lean = damp(this.lean, this.leanT, bodyK, dt)
     this.bow = damp(this.bow, this.bowT, 3.5, dt)
-    this.twist = damp(this.twist, this.twistT, 5, dt)
-    this.smile = damp(this.smile, this.smileT, 6, dt)
+    this.twist = damp(this.twist, this.twistT, 3, dt)
+    this.sway = damp(this.sway, this.swayT, 2.5, dt)
+    this.waveAmt = damp(this.waveAmt, this.pose === 'wave' ? 1 : 0, 4, dt)
+    const clapWas = Math.floor((this.t - dt) * 7.5 / Math.PI)
+    this.clapAmt = damp(this.clapAmt, this.pose === 'clap' ? 1 : 0, 5, dt)
+    if (this.clapAmt > 0.5 && Math.floor((this.t * 7.5) / Math.PI) !== clapWas) audio.play('clap', { vol: 0.25, pos: this.pos })
+    this.smile = damp(this.smile, this.smileT, 4, dt)
     this.surprise = damp(this.surprise, this.surpriseT, 9, dt)
     this.lookW = damp(this.lookW, this.look ? 1 : 0, 3, dt)
     // gaze glides between targets instead of snapping
     if (this.look) this.lookPoint.lerp(this.look(), 1 - Math.exp(-8 * dt))
     for (const s of ['L', 'R'] as Side[]) {
       // IK weight fades in/out in ~0.3s so hands never pop
-      this.handW[s] = damp(this.handW[s], this.handWorld[s] ? 1 : 0, 5, dt)
+      this.handW[s] = damp(this.handW[s], this.handWorld[s] ? 1 : 0, this.quick ? 10 : 5, dt)
       this.reachPole[s] = damp(this.reachPole[s], this.handWorld[s] ? 1 : 0, 4, dt)
     }
     this.setHandsFromPose(dt, false)
@@ -459,15 +478,13 @@ export class HostController {
         target.R.set(-0.04, y0 - 0.3, 0.24)
         break
       case 'wave':
-        target.R.set(sh.R.x - 0.3 + Math.sin(t * 9) * 0.08, y0 + 0.42, 0.12)
+        target.R.set(sh.R.x - 0.3, y0 + 0.42, 0.12) // the side-to-side wave is layered on after the spring
         break
-      case 'clap': {
-        const c = Math.abs(Math.sin(t * 7.5))
-        target.L.set(0.03 + c * 0.1, y0 - 0.15, 0.3)
-        target.R.set(-0.03 - c * 0.1, y0 - 0.15, 0.3)
-        if (Math.floor((t * 7.5) / Math.PI) !== Math.floor(((t - dt) * 7.5) / Math.PI)) audio.play('clap', { vol: 0.25, pos: this.pos })
+      case 'clap':
+        // hands meet in front of the chest; the clapping motion is layered on after the spring
+        target.L.set(0.08, y0 - 0.15, 0.3)
+        target.R.set(-0.08, y0 - 0.15, 0.3)
         break
-      }
       case 'present':
         // beside the face, not in front of it
         target.R.set(-0.24, y0 + 0.1, 0.4)
@@ -483,14 +500,24 @@ export class HostController {
         target.R.set(-0.13, y0 + 0.22, 0.34)
         break
       case 'hairTouch':
-        target.L.set(sh.L.x - 0.06, m.headY + 0.02, 0.04)
+        // tuck hair behind the ear: hand beside the head (outside the face), elbow out to the side
+        target.L.set(sh.L.x + 0.06, m.headY - 0.04, 0.01)
         break
       default:
         break
     }
     for (const s of ['L', 'R'] as Side[]) {
       if (snap) this.handLocal[s].copy(target[s])
-      else this.handLocal[s].lerp(target[s], 1 - Math.exp(-4.5 * dt))
+      else {
+        // critically-damped spring: every gesture eases in AND out (no snap at the start)
+        const k = this.quick ? 90 : 45
+        const c = 2 * Math.sqrt(k)
+        const v = this.handVel[s]
+        v.x += (k * (target[s].x - this.handLocal[s].x) - c * v.x) * dt
+        v.y += (k * (target[s].y - this.handLocal[s].y) - c * v.y) * dt
+        v.z += (k * (target[s].z - this.handLocal[s].z) - c * v.z) * dt
+        this.handLocal[s].addScaledVector(v, dt)
+      }
     }
   }
 
@@ -651,13 +678,22 @@ export class HostController {
     const b = this.bones
     const m = this.m
     const sx = s === 'L' ? 1 : -1
-    const local = this.toWorld(_v.copy(this.handLocal[s])).clone()
+    _v.copy(this.handLocal[s])
+    // gesture oscillations ride on top of the eased pose and fade in/out with it
+    if (s === 'R' && this.waveAmt > 0.001) _v.x += Math.sin(this.t * 9) * 0.08 * this.waveAmt
+    if (this.clapAmt > 0.001) _v.x += (s === 'L' ? 1 : -1) * (Math.abs(Math.sin(this.t * 7.5)) * 0.07 - 0.05) * this.clapAmt
+    const local = this.toWorld(_v).clone()
     const g = this.handWorld[s]
     if (g && this.handW[s] > 0.001) local.lerp(g(), this.handW[s])
     // elbows hang back/out at rest, point out/down when reaching forward
     const sh = m.shoulder[s]
     const rp = this.reachPole[s]
-    const pole = this.toWorld(_w.set(sh.x + sx * (0.25 + rp * 0.25), sh.y - 0.25 - rp * 0.1, -0.45 + rp * 0.3))
+    // raised hands (hair tuck, wave, holding things up) swing the elbow out to the side instead of
+    // back, so the forearm never folds backwards; blended by hand height for a smooth change
+    const raise = smoothRange(sh.y - 0.2, sh.y + 0.1, _v.y)
+    _w.set(sh.x + sx * (0.25 + rp * 0.25), sh.y - 0.25 - rp * 0.1, -0.45 + rp * 0.3)
+    _w.lerp(_u.set(sh.x + sx * 0.6, sh.y - 0.1, -0.05), raise)
+    const pole = this.toWorld(_w)
     const upper = s === 'L' ? b.lArm : b.rArm
     const lower = s === 'L' ? b.lElbow : b.rElbow
     const wrist = s === 'L' ? b.lWrist : b.rWrist
@@ -702,22 +738,23 @@ export class HostController {
   private idleVariations(dt: number) {
     if (!this.idleEnabled || this.path) {
       this.idleClock = 0
+      if (this.gazeOwned) {
+        this.look = null
+        this.gazeOwned = false
+        this.twistT = 0
+      }
       return
     }
+    this.idleGaze(dt)
     this.idleClock += dt
     if (this.idleClock < this.nextIdle) return
     this.idleClock = 0
     this.nextIdle = 6 + Math.random() * 6
     const r = Math.random()
-    if (r < 0.3) {
-      // glance at the camera
-      const prev = this.look
-      this.lookAtCamera()
-      void this.wait(2.2).then(() => this.idleEnabled && (this.look = prev))
-    } else if (r < 0.55) {
+    if (r < 0.55) {
       // tilt head / shift weight
-      this.sway = (Math.random() - 0.5) * 0.08
-      void this.wait(2.5).then(() => (this.sway = 0))
+      this.swayT = (Math.random() - 0.5) * 0.08
+      void this.wait(2.5).then(() => (this.swayT = 0))
     } else if (r < 0.8) {
       // fix hair
       if (this.pose === 'rest') {
@@ -728,6 +765,40 @@ export class HostController {
       this.twistT = (Math.random() - 0.5) * 0.3
       void this.wait(2).then(() => (this.twistT = 0))
     }
+  }
+
+  /**
+   * Idle gaze: when nothing else directs her eyes, she looks around the stage every 2–4.5 s
+   * (cage, crank, tray, props, the audience, the rig, the camera). Big head turns pull the upper
+   * body along a little. Any explicit lookAt() from the show takes over immediately.
+   */
+  private idleGaze(dt: number) {
+    if (this.look && !this.gazeOwned) return
+    this.gazeClock -= dt
+    if (this.gazeClock > 0) return
+    this.gazeClock = 2 + Math.random() * 2.5
+    const r = Math.random()
+    if (r < 0.2) {
+      this.lookAtCamera()
+      this.gazeOwned = true
+      this.twistT = 0
+      return
+    }
+    if (r < 0.32) {
+      // eyes front for a moment
+      this.look = null
+      this.gazeOwned = true
+      this.twistT = 0
+      return
+    }
+    const p = GAZE_POINTS[Math.floor(Math.random() * GAZE_POINTS.length)].clone()
+    p.x += (Math.random() - 0.5) * 0.3
+    p.y += (Math.random() - 0.5) * 0.15
+    this.look = () => p
+    this.gazeOwned = true
+    // turn the chest a bit toward far-away targets (in character space)
+    const d = _v.subVectors(p, this.pos).applyAxisAngle(Y, -this.yaw)
+    this.twistT = clamp(Math.atan2(d.x, d.z) * 0.25, -0.3, 0.3)
   }
 
   // ---------------------------------------------------------------- helpers
@@ -752,6 +823,19 @@ export class HostController {
 }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
+
+/** Things worth a glance on stage while idle. */
+const GAZE_POINTS = [
+  CAGE.center.clone(),
+  CRANK.hub.clone(),
+  TRAY.center.clone(),
+  PROPS.clipboard.clone().setY(1.0),
+  PROPS.radio.clone().setY(0.9),
+  new Vector3(-2.6, 1.4, 4.5), // audience, left
+  new Vector3(2.6, 1.4, 4.5), // audience, right
+  new Vector3(0, 1.5, 6), // audience, centre
+  new Vector3(0.6, 4.8, 2.0), // the lighting rig
+]
 
 const HAND_BONE = /wrist|Finger|Thumb|Hand_Ribon/
 

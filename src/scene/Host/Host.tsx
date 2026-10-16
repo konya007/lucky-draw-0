@@ -1,15 +1,15 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
-import { Box3, Color, DataTexture, Material, Mesh, MeshToonMaterial, NearestFilter, Object3D, RedFormat, SkinnedMesh, Texture, Vector3 } from 'three'
+import { Box3, CanvasTexture, Color, DataTexture, Material, Mesh, MeshBasicMaterial, MeshToonMaterial, NearestFilter, Object3D, RedFormat, SkinnedMesh, Texture, Vector3 } from 'three'
 import { SkeletonUtils } from 'three-stdlib'
 import { host, baseName } from './useHostAnimator'
+import { fixZeroNormals } from '../../lib/safeNormals'
 import { assetUrl } from '../../lib/assetUrl'
 import { director } from '../../director/Director'
-import { useSettingsStore } from '../../store/useSettingsStore'
-import { QUALITY } from '../../quality/qualityPresets'
+import { useQuality } from '../../quality/qualityPresets'
 
 export const HOST_URL = assetUrl('host.glb')
 const TARGET_HEIGHT = 1.6
@@ -58,8 +58,7 @@ function toToon(src: Material, ramp: Texture): MeshToonMaterial {
 export function Host() {
   const gltf = useGLTF(HOST_URL, false, true)
   const camera = useThree((s) => s.camera)
-  const level = useSettingsStore((s) => s.level)
-  const preset = QUALITY[level]
+  const preset = useQuality()
 
   const model = useMemo(() => {
     const scene = SkeletonUtils.clone(gltf.scene) as Object3D
@@ -71,6 +70,8 @@ export function Host() {
       mesh.frustumCulled = false
       // unlit exports may ship without normals; lit toon shading needs them
       if (!mesh.geometry.attributes.normal) mesh.geometry.computeVertexNormals()
+      // degenerate vertices can carry zero normals → NaN in the toon/rim shading → black flicker
+      fixZeroNormals(mesh.geometry, 0, 1, 0)
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
       const conv = mats.map((mm) => {
         if (!cache.has(mm)) cache.set(mm, toToon(mm, ramp))
@@ -144,13 +145,58 @@ export function Host() {
   useFrame((_, dt) => host.update(dt))
 
   return (
-    <primitive
-      object={host.root}
-      onPointerDown={(e: { stopPropagation: () => void }) => {
-        e.stopPropagation()
-        director.hostTap()
-      }}
-    />
+    <>
+      <primitive
+        object={host.root}
+        onPointerDown={(e: { stopPropagation: () => void }) => {
+          e.stopPropagation()
+          director.hostTap()
+        }}
+      />
+      <HostShadow />
+    </>
+  )
+}
+
+/** Soft radial gradient (black → transparent) for the contact shadow. */
+function blobTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')!
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  grd.addColorStop(0, 'rgba(0,0,0,0.85)')
+  grd.addColorStop(0.5, 'rgba(0,0,0,0.45)')
+  grd.addColorStop(1, 'rgba(0,0,0,0)')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 64, 64)
+  return new CanvasTexture(c)
+}
+
+const _hip = new Vector3()
+
+/**
+ * Contact shadow under the host (one transparent quad, every preset). The key light's real shadow
+ * falls behind her into the dark, so this is what grounds her on the floor; it tightens and fades
+ * a little when she hops.
+ */
+function HostShadow() {
+  const mesh = useRef<Mesh>(null)
+  const mat = useMemo(() => new MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), [])
+  useFrame(() => {
+    const m = mesh.current
+    if (!m) return
+    host.hipsWorld(_hip)
+    const lift = Math.max(0, _hip.y - (host.metrics?.hipY ?? _hip.y)) // > 0 while airborne
+    m.position.set(_hip.x, 0.004, _hip.z)
+    m.rotation.set(-Math.PI / 2, 0, host.yaw)
+    const k = 1 - Math.min(0.35, lift * 4)
+    m.scale.set(0.62 * k, 0.48 * k, 1)
+    mat.opacity = 0.75 * k
+  })
+  return (
+    <mesh ref={mesh} material={mat} raycast={() => null} renderOrder={2}>
+      <planeGeometry args={[1, 1]} />
+    </mesh>
   )
 }
 

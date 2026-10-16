@@ -5,8 +5,7 @@ import { BlendFunction, Effect, ToneMappingMode, type BloomEffect, type Chromati
 import { Uniform, Vector2, Vector3 } from 'three'
 import { fx } from '../director/channels'
 import { camState } from '../director/CameraDirector'
-import { useSettingsStore } from '../store/useSettingsStore'
-import { QUALITY } from '../quality/qualityPresets'
+import { useQuality } from '../quality/qualityPresets'
 
 /** Pre-tonemap: exposure (animated, in stops-ish multiplier) + gentle teal/orange split toning. */
 class GradeEffect extends Effect {
@@ -67,8 +66,7 @@ const Finish = forwardRef<FinishEffect>(function Finish(_, ref) {
 
 /** One EffectComposer; passes depend on the quality preset, values are animated channels. */
 export function Effects() {
-  const level = useSettingsStore((s) => s.level)
-  const q = QUALITY[level]
+  const q = useQuality()
   const grade = useRef<GradeEffect>(null)
   const finish = useRef<FinishEffect>(null)
   const bloom = useRef<BloomEffect>(null)
@@ -95,7 +93,7 @@ export function Effects() {
   })
 
   return (
-    <EffectComposer multisampling={q.msaa} enableNormalPass={false}>
+    <EffectComposer multisampling={0} enableNormalPass={false}>
       <>{q.dof && <DepthOfField ref={dof} target={focus} worldFocusRange={0.6} bokehScale={2} />}</>
       <>{q.bloom && <Bloom ref={bloom as never} mipmapBlur levels={5} luminanceThreshold={1.0} luminanceSmoothing={0.15} intensity={0.6} radius={0.55} />}</>
       <>{q.chroma && <ChromaticAberration ref={chroma as never} offset={caOffset} radialModulation modulationOffset={0.35} />}</>
@@ -104,7 +102,7 @@ export function Effects() {
       <Finish ref={finish} />
       <>{q.grain && <Noise premultiply opacity={0.35} />}</>
       {/* cheap edge AA when hardware MSAA is off */}
-      <>{q.msaa === 0 && level !== 'low' && <SMAA />}</>
+      <>{q.antialias && <SMAA />}</>
     </EffectComposer>
   )
 }

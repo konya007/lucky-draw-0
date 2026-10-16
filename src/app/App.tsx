@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import gsap from 'gsap'
 import { EntryModal } from '../ui/EntryModal'
+import { HomeScreen } from '../ui/HomeScreen'
 import { PackingOverlay } from '../ui/PackingOverlay'
 import { HistoryOverlay } from '../ui/HistoryOverlay'
 import { StageText } from '../ui/StageText'
@@ -12,8 +13,8 @@ import { director } from '../director/Director'
 
 // Dev-only handle for automated walkthroughs (screenshots / smoke tests).
 if (import.meta.env.DEV) {
-  void Promise.all([import('../store/useGameStore'), import('../director/channels'), import('../scene/Host/useHostAnimator'), import('../scene/Balls/ballSystem'), import('../scene/Balls/HeroBall'), import('../scene/Props/Ticket'), import('../director/CameraDirector')]).then(
-    ([gs, ch, h, bs, hb, tk, cd]) => ((window as unknown as Record<string, unknown>).__gd = { director, store: gs.useGameStore, channels: ch, host: h.host, balls: bs.ballSystem, hero: hb.hero, ticket: tk.ticket, cam: cd }),
+  void Promise.all([import('../store/useGameStore'), import('../director/channels'), import('../scene/Host/useHostAnimator'), import('../scene/Balls/ballSystem'), import('../scene/Balls/HeroBall'), import('../scene/Props/Ticket'), import('../director/CameraDirector'), import('../store/useSettingsStore')]).then(
+    ([gs, ch, h, bs, hb, tk, cd, ss]) => ((window as unknown as Record<string, unknown>).__gd = { director, store: gs.useGameStore, settings: ss.useSettingsStore, channels: ch, host: h.host, balls: bs.ballSystem, hero: hb.hero, ticket: tk.ticket, cam: cd }),
   )
 }
 
@@ -80,6 +81,7 @@ export function App() {
           <div className="font-serif text-sm tracking-[0.5em] text-paper/70 uppercase">Tạm dừng</div>
         </div>
       )}
+      <HomeScreen />
       <EntryModal />
       <PackingOverlay />
       <HistoryOverlay />

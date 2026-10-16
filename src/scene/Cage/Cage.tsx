@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useAfterPhysicsStep, useBeforePhysicsStep, useRapier, type RapierRigidBody } from '@react-three/rapier'
+import { useAfterPhysicsStep, useRapier } from '@react-three/rapier'
 import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three'
 import { CAGE, CRANK } from '../layout'
 import { brass } from '../materials'
-import { baffles, drumColliders } from './CageColliders'
+import { baffles } from './CageColliders'
 import { Lid } from './Lid'
 import { OutletDoor, ChuteAndTray } from './Outlet'
 import { Crank } from './Crank'
@@ -13,8 +13,7 @@ import { spin } from '../../director/spin'
 import { director } from '../../director/Director'
 import { ballSystem } from '../Balls/ballSystem'
 import { merge, ring, rod } from '../geom'
-import { useSettingsStore } from '../../store/useSettingsStore'
-import { QUALITY } from '../../quality/qualityPresets'
+import { useQuality } from '../../quality/qualityPresets'
 
 /** Drum bars (meridians + latitudes + baffles + axle), in drum-local space, merged into one geometry. */
 function useDrumGeometry() {
@@ -74,8 +73,7 @@ export function Cage() {
   const ghostB = useRef<Mesh>(null)
   const drumGeo = useDrumGeometry()
   const frameGeo = useFrameGeometry()
-  const level = useSettingsStore((s) => s.level)
-  const motionBlur = QUALITY[level].motionBlur
+  const motionBlur = useQuality().motionBlur
   const ghostMat = useMemo(() => {
     const m = brass.clone() as MeshStandardMaterial
     m.transparent = true
@@ -132,47 +130,14 @@ export function Cage() {
   )
 }
 
-/** Kinematic drum body (compound tiles) + all ball bodies. */
+/** Ball solver tick (drum) + the single Rapier body used for the chute roll. */
 function CagePhysics() {
   const { world, rapier } = useRapier()
-  const body = useRef<RapierRigidBody | null>(null)
-  const budget = QUALITY[useSettingsStore((s) => s.level)].dynamicBalls
-
   useEffect(() => {
-    const c = CAGE.center
-    const b = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(c.x, c.y, c.z))
-    for (const t of [...drumColliders(), ...baffles()]) {
-      world.createCollider(
-        rapier.ColliderDesc.cuboid(t.half.x, t.half.y, t.half.z)
-          .setTranslation(t.pos.x, t.pos.y, t.pos.z)
-          .setRotation({ x: t.quat.x, y: t.quat.y, z: t.quat.z, w: t.quat.w })
-          .setFriction(0.5)
-          .setRestitution(0.4),
-        b,
-      )
-    }
-    // end caps of the drum (flat discs approximated by boxes at ±R along X are covered by tiles)
-    body.current = b as unknown as RapierRigidBody
     ballSystem.init(rapier, world)
-    ballSystem.cage = body.current
-    return () => {
-      ballSystem.dispose()
-      if (world.getRigidBody(b.handle)) world.removeRigidBody(b)
-    }
+    return () => ballSystem.dispose()
   }, [world, rapier])
-
-  useEffect(() => {
-    ballSystem.dynamicBudget = budget
-  }, [budget])
-
-  useBeforePhysicsStep(() => {
-    const b = body.current
-    if (b) {
-      const a = cage.angle
-      b.setNextKinematicRotation({ x: Math.sin(a / 2), y: 0, z: 0, w: Math.cos(a / 2) })
-    }
-    ballSystem.beforeStep()
-  })
-  useAfterPhysicsStep(() => ballSystem.sync(1 / 60))
+  useFrame((_, dt) => ballSystem.update(dt))
+  useAfterPhysicsStep(() => ballSystem.syncChute())
   return null
 }

@@ -1,8 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Color, DoubleSide, InstancedMesh, Matrix4, MeshStandardMaterial, PlaneGeometry, Quaternion, Vector3 } from 'three'
-import { useSettingsStore } from '../../store/useSettingsStore'
-import { QUALITY } from '../../quality/qualityPresets'
+import { useQuality } from '../../quality/qualityPresets'
 import { clock } from '../../director/channels'
 
 const MAX = 400
@@ -32,8 +31,7 @@ const _q = new Quaternion()
 const _s = new Vector3()
 
 export function Confetti() {
-  const level = useSettingsStore((s) => s.level)
-  const budget = QUALITY[level].confetti
+  const budget = useQuality().confetti
   const mesh = useRef<InstancedMesh>(null)
   const parts = useMemo<P[]>(
     () =>

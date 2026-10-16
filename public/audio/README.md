@@ -1,21 +1,17 @@
 # Thêm âm thanh thật
 
-Mọi âm thanh trong game đều đang được **tổng hợp bằng code** (Web Audio), nên chưa có file nào game vẫn có tiếng. Muốn thay âm nào bằng file thật, làm 2 bước:
+Mọi âm thanh trong game đều đang được **tổng hợp bằng code** (Web Audio), nên chưa có file nào game vẫn có tiếng. Muốn thay âm nào bằng file thật:
 
-1. Chép file vào thư mục này (`public/audio/`). Nên dùng `.mp3` hoặc `.ogg`, 44.1 kHz. Hiệu ứng ngắn nên dưới 1 giây và cắt sát đầu file (không để khoảng lặng ở đầu, nếu không tiếng sẽ phát trễ).
-2. Khai báo file trong `manifest.json` theo dạng `"tên âm": "tên file"`:
+1. Chép file vào thư mục này (`public/audio/`), **đặt tên file đúng bằng tên âm** trong bảng bên dưới, ví dụ `hitBall.mp3`, `music.mp3`, `applause.ogg`. Định dạng: `.mp3`, `.ogg`, `.wav`, `.m4a`, `.aac`, `.webm`, `.flac`.
+2. Tải lại trang. Xong. Game tự nhận mọi file có tên khớp (khi chạy `npm run dev`, chép file mới vào là trang tự tải lại). Bản build (`npm run build`) lấy danh sách file lúc build, nên thêm file thì build lại.
+
+Hiệu ứng ngắn nên dưới 1 giây và cắt sát đầu file (không để khoảng lặng ở đầu, nếu không tiếng sẽ phát trễ). Âm nào không có file thì vẫn dùng tiếng tổng hợp. File hỏng hoặc không đọc được sẽ báo cảnh báo trong Console (F12) kèm tên file.
+
+**Tùy chọn:** muốn dùng file có tên khác, khai báo trong `manifest.json` (mục này được ưu tiên hơn file cùng tên):
 
 ```json
-{
-  "files": {
-    "hitBall": "ball-hit.mp3",
-    "cymbal": "cymbal.mp3",
-    "music": "nhac-nen.mp3"
-  }
-}
+{ "files": { "hitBall": "ball-hit-v2.mp3", "music": "gala-theme.ogg" } }
 ```
-
-Tải lại trang là xong (không cần build lại). Âm nào không khai báo thì vẫn dùng tiếng tổng hợp.
 
 Mỗi lần phát, game tự đổi cao độ ±8% và tiếng trong lồng phát theo vị trí 3D, nên một file cũng nghe không bị lặp đơn điệu.
 

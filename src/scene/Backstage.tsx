@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Color, MeshBasicMaterial, SRGBColorSpace, Texture, TextureLoader } from 'three'
 import { useStageConfig } from '../store/useStageConfig'
+import { useMedia } from '../lib/mediaStore'
 
 /**
  * The wall behind the stage. With no image it is a near-black wall; with `backstage.image`
  * (public/stage-config.json) it shows the photo, unlit (MeshBasic = cheapest), dimmed by `brightness`.
  */
 export function Backstage() {
-  const cfg = useStageConfig((s) => s.backstage)
+  const base = useStageConfig((s) => s.backstage)
+  // an image uploaded in Settings (IndexedDB) replaces the configured one
+  const uploaded = useMedia((s) => s.backstageUrl)
+  const cfg = useMemo(() => (uploaded ? { ...base, image: uploaded } : base), [base, uploaded])
   const [tex, setTex] = useState<Texture | null>(null)
 
   useEffect(() => {
