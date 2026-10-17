@@ -39,14 +39,25 @@ Vì site có thể nằm dưới một sub-path, mọi file trong `public/` ph�
 
 ## Cách chơi
 
-0. Mở web sẽ thấy màn tải, rồi màn chính với 2 nút **Bắt đầu quay** và **Cài đặt**. Bấm **Bắt đầu quay** để mở màn soạn danh sách.
+0. Mở web sẽ thấy màn tải, rồi màn chính với 2 nút **Bắt đầu quay** và **Cài đặt**. Hàng nút bên dưới có **Người đã trúng** (xem các vé đã trúng) và **Xóa kết quả** (bấm 2 lần để xác nhận). Bấm **Bắt đầu quay** để mở màn soạn danh sách.
 1. Dán danh sách, mỗi dòng một mục. Có thể dùng `Tên | Giải | Ghi chú`, Tab hoặc CSV. Bấm **Tiến hành quay số**.
-2. Cầu được đóng gói, rèm mở, cô dẫn chương trình bay ra, các quả cầu bay vào lồng.
+2. Cầu được đóng gói, rèm mở, cô dẫn chương trình bước ra, các quả cầu bay vào lồng.
 3. Chạm vào **cần quay** (thứ đang phát sáng): bấm một lần thì cô tự quay, còn kéo vòng tròn thì lực quay theo tay bạn.
 4. Quả cầu rơi ra khay, cô nhặt lên. Chạm vào quả cầu (hoặc giữ để "bẻ") để mở. Vé hiện ra.
 5. Chạm vào vé (hoặc vuốt lên) để cất vào hộp và quay lượt tiếp. Bảng kẹp giấy bên phải mở lại danh sách, radio bên trái mở cài đặt, hộp vé trên bàn mở lịch sử (xuất CSV hoặc sao chép).
 
-Kết quả được chọn bằng `crypto.getRandomValues` đúng lúc quả cầu rời lồng. Quả cầu chỉ mang tính tượng trưng, tối đa 200 quả (số quả được mô phỏng vật lý tùy preset; phần còn lại nằm yên trong lồng). Danh sách, tiêu đề và lịch sử được lưu trong `localStorage`.
+Kết quả được chọn bằng `crypto.getRandomValues` đúng lúc quả cầu rời lồng. Quả cầu chỉ mang tính tượng trưng, tối đa 200 quả. Danh sách, tiêu đề, lịch sử và các tùy chọn bên dưới được lưu trong `localStorage`.
+
+### Màn soạn danh sách
+
+- **Thao tác danh sách ▾**: gom mọi công cụ vào một menu: thêm dữ liệu mẫu (30 người có MSSV và giải), nhập file .txt/.csv, xáo trộn, sắp xếp A→Z, đảo ngược, xóa dòng trùng, xóa dòng trống, xóa hết (bấm 2 lần).
+- **Che mã số**: chế độ hiển thị, dữ liệu gốc không bị sửa. Mọi dãy từ 6 chữ số trở lên (MSSV, số điện thoại…) bị che ⌈n/3⌉ số ở giữa, ví dụ 10 số thì che 4 số: `2251052127` → `225xxxx127`. Áp dụng cho danh sách xem trước, thẻ bay vào quả cầu, vé trúng thưởng và sổ vé. File CSV xuất ra vẫn giữ số đầy đủ.
+- **Số người trúng**: để trống thì quay đến khi hết danh sách. Nhập số (ví dụ 5) thì khi đủ 5 người trúng trong buổi quay, sân khấu tự hạ màn sau khi cất vé cuối.
+- **Loại người đã trúng**: bật thì người đã trúng không được quay lại, và lồng không bổ sung quả mới (lồng vơi dần).
+
+### Hạ màn sớm
+
+Rê chuột vào góc dưới phải, bấm **Hạ màn** rồi bấm lần nữa để xác nhận. Nếu đang rảnh thì hạ màn ngay. Nếu vé đang hiện thì cô cất vé trước rồi mới hạ màn. Nếu đang quay thì xong lượt quay này rồi mới hạ màn.
 
 ## Cấu trúc
 
@@ -61,13 +72,13 @@ src/
               spin.ts          đường cong quay (luôn dừng ở bội số 2π: nắp lên trên, cửa ra phía trước)
               channels.ts      các giá trị animate dùng chung (GSAP ghi, component đọc mỗi frame)
   scene/      Stage, Curtain (shader nhung), Lights, Effects, layout.ts (mọi tọa độ sân khấu)
-              Cage/   lồng, collider dạng tile, cần quay (kéo), nắp, cửa ra + máng + khay
-              Balls/  ballSystem (body Rapier tạo trực tiếp), BallPool (1 InstancedMesh), HeroBall
+              Cage/   lồng, cánh gạt, cần quay (kéo), nắp, cửa ra + máng + khay
+              Balls/  ballSystem (bộ giải vật lý riêng cho lồng + 1 body Rapier cho máng), BallPool (1 InstancedMesh), HeroBall
               Host/   Host.tsx, useHostAnimator.ts (animator thủ tục + IK), hostIK.ts, hostPaths.ts, HostRig.md
               Props/  SettingsRadio (bảng điều khiển 3D), ListClipboard, Ticket (vé CanvasTexture), TicketBox
               VFX/    Confetti, BallTrail, DustMotes, FloorFog, LightCone
   quality/    qualityPresets.ts, useAutoQuality.ts
-  ui/         EntryModal, PackingOverlay, HistoryOverlay, StageText, LoadingBar
+  ui/         HomeScreen, EntryModal, PackingOverlay, HistoryOverlay, SettingsPanel, SpeedToggle (góc dưới phải), StageText, LoadingBar
   audio/      audioManager.ts (tổng hợp bằng Web Audio), sfx.ts
   lib/        parseEntries, random (crypto), shuffle, assetUrl (đường dẫn asset theo base khi deploy)
 ```
@@ -109,11 +120,11 @@ Lồng quay theo phương trình vật lý: quán tính, ma sát ổ trục và 
 
 ## Cài đặt
 
-Bấm vào chiếc radio bên trái sân khấu (hoặc rê chuột vào góc dưới phải để hiện nút ⚙ / ×2):
+Bấm vào chiếc radio bên trái sân khấu, nút **Cài đặt** ở màn chính, hoặc rê chuột vào góc dưới phải để hiện các nút Hạ màn / ⚙ / ×2:
 
 - Âm thanh: Tổng, Nhạc nền, Hiệu ứng, Tắt tiếng.
 - Sân khấu & nhạc nền: **tải lên ảnh nền** (thay ảnh hậu trường) và **tải lên nhạc nền** (thay nhạc mặc định). File được lưu trong IndexedDB của trình duyệt nên tải lại trang vẫn còn. Tải file mới sẽ ghi đè file cũ, nút “Xóa” để quay về mặc định.
-- Đồ họa: Tự động / Thấp / TB / Cao / Ultra. Mục **Tùy chỉnh chi tiết** cho phép chỉnh riêng từng mục trên nền mức đã chọn: độ phân giải, bóng đổ, bóng thật của nhân vật, sàn phản chiếu, luồng sáng, bụi, khói sàn, bloom, DOF, viền màu, hạt phim, khử răng cưa, nhòe chuyển động, lượng pháo giấy. Nút “Đặt lại theo mức đồ họa” để quay về mặc định.
+- Đồ họa: Tự động / Thấp / TB / Cao / Ultra. Mục **Tùy chỉnh chi tiết** cho phép chỉnh riêng từng mục trên nền mức đã chọn: độ phân giải, bóng đổ, bóng thật của nhân vật, sàn phản chiếu, luồng sáng, bụi, khói sân khấu (các cụm khói lơ lửng, ăn theo ánh đèn), khói sàn, bloom, DOF, viền màu, hạt phim, khử răng cưa, nhòe chuyển động, lượng pháo giấy. Nút “Đặt lại theo mức đồ họa” để quay về mặc định.
 - Tốc độ ×2 cho toàn bộ màn diễn (phím F).
 
 ## Thay âm thanh
@@ -127,7 +138,7 @@ Mọi âm thanh đều được tổng hợp bằng Web Audio, nên dự án ch�
 { "files": { "cymbal": "cymbal.mp3", "music": "nhac-nen.mp3", "voiceCongrats": "chuc-mung.mp3" } }
 ```
 
-Danh sách tên nằm trong `src/audio/sfx.ts`. Các loop (`music`, `room`, `drumroll`, `clatter`) cũng thay được. Câu thoại `voiceStart` / `voiceCongrats` chỉ phát ra giọng thật khi có file.
+Danh sách tên nằm trong `src/audio/sfx.ts`. Các loop (`music`, `room`, `drumroll`) cũng thay được. Câu thoại `voiceStart` / `voiceCongrats` chỉ phát ra giọng thật khi có file.
 
 ## Thay màu
 
@@ -136,7 +147,7 @@ Bảng màu nằm ở `COLORS` và `BALL_COLORS` trong `src/scene/layout.ts`, to
 ## Hiệu năng
 
 - Preset **Tự động** bắt đầu ở Trung bình. `PerformanceMonitor` theo dõi FPS (dưới 50 thì hạ, trên 58 thì nâng; dao động 3 lần thì khóa nấc). Việc đổi preset chỉ áp dụng ở phase an toàn, không bao giờ giữa lúc đang quay.
-- 100 quả cầu được vẽ bằng 1 InstancedMesh. Lồng là một geometry gộp, collider là các tile hình hộp (không dùng trimesh).
+- 200 quả cầu được vẽ bằng 1 InstancedMesh. Lồng là một geometry gộp. Vật lý trong lồng dùng bộ giải riêng (khoảng 1 ms/khung hình cho 200 quả), không dùng engine vật lý tổng quát.
 - Không dùng PointLight hay RectAreaLight nào. Hiệu ứng sáng của quả cầu là sprite 2D và hạt (particle). Đèn đạo cụ là emissive.
 - Shadow map chỉ render lại khi có chuyển động (tối đa 30 Hz). Khi ẩn tab hoặc cửa sổ mất focus thì game tạm dừng (render, vật lý, tween, âm thanh).
 - Trong lúc mở màn soạn danh sách, sân khấu phía sau render ở DPR 0,5.

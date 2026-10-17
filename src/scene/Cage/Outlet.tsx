@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useRapier } from '@react-three/rapier'
-import { BoxGeometry, CylinderGeometry, Group, Matrix4, Quaternion, SphereGeometry, Vector3 } from 'three'
+import { BoxGeometry, CylinderGeometry, DoubleSide, Group, Matrix4, Quaternion, SphereGeometry, Vector3 } from 'three'
 import { CAGE, CHUTE, OUTLET, TABLE, TRAY } from '../layout'
 import { brass, darkWood, velvet } from '../materials'
 import { stage } from '../../director/channels'
@@ -32,6 +32,10 @@ export function OutletDoor() {
   )
 }
 
+/** Brass for thin open surfaces (the chute), visible from both sides. */
+const brassTwoSided = brass.clone()
+brassTwoSided.side = DoubleSide
+
 /** Chute frame vectors shared by the visual trough and its colliders. */
 function chuteFrame() {
   const dir = CHUTE.end.clone().sub(CHUTE.start)
@@ -45,12 +49,16 @@ function chuteFrame() {
 
 /** Brass chute, velvet tray and the dark wood table, plus their static colliders. */
 export function ChuteAndTray() {
-  const { brassGeo, woodGeo, velvetGeo } = useMemo(() => {
+  const { brassGeo, troughGeo, woodGeo, velvetGeo } = useMemo(() => {
     const { dir, len, x, up, mid } = chuteFrame()
     const w = CHUTE.width
     // half-pipe trough (open top)
-    const trough = new CylinderGeometry(w / 2, w / 2, len + 0.04, 16, 1, true, Math.PI / 2, Math.PI)
-    trough.applyMatrix4(basisMatrix(x, dir, up, mid.clone().addScaledVector(up, w / 2)))
+    // half-pipe trough (open top): inner surface + a slightly larger outer shell give it wall thickness;
+    // rendered double-sided so it never turns see-through from below or behind
+    const frame = basisMatrix(x, dir, up, mid.clone().addScaledVector(up, w / 2))
+    const troughInner = new CylinderGeometry(w / 2, w / 2, len + 0.04, 20, 1, true, Math.PI / 2, Math.PI).applyMatrix4(frame)
+    const troughOuter = new CylinderGeometry(w / 2 + 0.006, w / 2 + 0.006, len + 0.04, 20, 1, true, Math.PI / 2, Math.PI).applyMatrix4(frame)
+    const troughGeo = merge([troughInner, troughOuter])
     // tray rim
     const [sx, sz] = TRAY.size
     const rimH = TRAY.rim
@@ -65,14 +73,14 @@ export function ChuteAndTray() {
     const tt = TABLE.top
     const trim = new BoxGeometry(TABLE.width + 0.02, 0.018, TABLE.depth + 0.02).translate(TABLE.center.x, tt - 0.04, TABLE.center.z)
     const foot = new CylinderGeometry(0.2, 0.24, 0.03, 24).translate(TABLE.center.x, 0.015, TABLE.center.z)
-    const brassGeo = merge([trough, ...rims, trim, foot])
+    const brassGeo = merge([...rims, trim, foot])
 
     const top = new BoxGeometry(TABLE.width, 0.05, TABLE.depth).translate(TABLE.center.x, tt - 0.025, TABLE.center.z)
     const column = new CylinderGeometry(0.06, 0.09, tt - 0.07, 16).translate(TABLE.center.x, (tt - 0.07) / 2 + 0.02, TABLE.center.z)
     const woodGeo = merge([top, column])
 
     const velvetGeo = new BoxGeometry(sx, 0.01, sz).translate(TRAY.center.x, ty, TRAY.center.z)
-    return { brassGeo, woodGeo, velvetGeo }
+    return { brassGeo, troughGeo, woodGeo, velvetGeo }
   }, [])
 
   useStaticColliders()
@@ -80,6 +88,7 @@ export function ChuteAndTray() {
   return (
     <group>
       <mesh geometry={brassGeo} material={brass} castShadow receiveShadow />
+      <mesh geometry={troughGeo} material={brassTwoSided} castShadow receiveShadow />
       <mesh geometry={woodGeo} material={darkWood} castShadow receiveShadow />
       <mesh geometry={velvetGeo} material={velvet} receiveShadow />
     </group>

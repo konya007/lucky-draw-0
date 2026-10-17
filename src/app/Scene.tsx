@@ -18,6 +18,7 @@ import { Confetti } from '../scene/VFX/Confetti'
 import { BallTrail } from '../scene/VFX/BallTrail'
 import { DustMotes } from '../scene/VFX/DustMotes'
 import { FloorFog } from '../scene/VFX/FloorFog'
+import { StageSmoke } from '../scene/VFX/StageSmoke'
 import { CameraDirector } from '../director/CameraDirector'
 import { director } from '../director/Director'
 import { useGameStore } from '../store/useGameStore'
@@ -146,6 +147,7 @@ export default function Scene({ paused }: { paused: boolean }) {
         <BallTrail />
         {q.dustInCones && <DustMotes />}
         {q.fogLayers > 0 && <FloorFog layers={q.fogLayers} />}
+        {q.smoke > 0 && <StageSmoke count={q.smoke} />}
         <CrankHint />
         <Effects />
         <Precompile />

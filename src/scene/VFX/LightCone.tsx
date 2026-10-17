@@ -65,10 +65,13 @@ export function LightCone({
             float halfW = mix(uApex, 1.0, along);     // cone taper drawn inside the quad
             float x = (vUv.x - 0.5) * 2.0 / halfW;
             float across = exp(-x * x * 2.5);
-            float len = pow(1.0 - along, 0.7) * smoothstep(0.0, 0.08, along) + 0.15 * smoothstep(0.85, 1.0, along);
+            // clamp: interpolated UVs can dip a hair below 0 at the tip, and pow(negative, 0.7) = NaN
+            // → one NaN pixel becomes flickering black squares after the bloom blur
+            along = clamp(along, 0.0, 1.0);
+            float len = pow(max(1.0 - along, 0.0), 0.7) * smoothstep(0.0, 0.08, along) + 0.15 * smoothstep(0.85, 1.0, along);
             float haze = 0.7 + 0.3 * n3(vP * 1.8 + vec3(0.0, uT * 0.05, uT * 0.03));
             float near = smoothstep(0.6, 2.2, distance(cameraPosition, vP));
-            gl_FragColor = vec4(uColor * across * len * haze * near * uI, 1.0);
+            gl_FragColor = vec4(max(uColor * across * len * haze * near * uI, vec3(0.0)), 1.0);
           }`,
       }),
     [color],

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { parseEntries, type Entry, MAX_BALLS } from '../lib/parseEntries'
 import { cryptoInt } from '../lib/random'
+import { maskIds } from '../lib/maskIds'
 
 export type Phase =
   | 'EDITING'
@@ -85,6 +86,10 @@ interface GameState {
   hint: boolean
   /** the list editor is shown (after "Bắt đầu quay" on the home screen) */
   editorOpen: boolean
+  /** display mode: mask the middle of ID-like numbers everywhere on screen (data stays intact) */
+  maskIds: boolean
+  /** stop after this many winners in a session (null = keep drawing until the pool is empty) */
+  winnerLimit: number | null
   /** cards flying from the editor into the balls (PACKING) */
   packing: { cards: PackCard[] } | null
   setPhase: (p: Phase) => boolean
@@ -117,6 +122,8 @@ export const useGameStore = create<GameState>()(
       historyOpen: false,
       hint: false,
       editorOpen: false,
+      maskIds: false,
+      winnerLimit: null,
       packing: null,
       setPhase: (p) => {
         const cur = get().phase
@@ -174,7 +181,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grand-draw:game',
-      partialize: (s) => ({ text: s.text, title: s.title, removeWinners: s.removeWinners, history: s.history, hintShown: s.hintShown }),
+      partialize: (s) => ({ text: s.text, title: s.title, removeWinners: s.removeWinners, history: s.history, hintShown: s.hintShown, maskIds: s.maskIds, winnerLimit: s.winnerLimit }),
     },
   ),
 )
@@ -183,3 +190,11 @@ export const useGameStore = create<GameState>()(
 export const ballsFor = (poolSize: number) => Math.min(poolSize, MAX_BALLS)
 
 export const game = () => useGameStore.getState()
+
+/** Text as it should appear on screen (applies the ID mask when that mode is on). */
+export const shown = (text: string) => (useGameStore.getState().maskIds ? maskIds(text) : text)
+/** Reactive version for components. */
+export function useShown() {
+  const on = useGameStore((s) => s.maskIds)
+  return (text: string) => (on ? maskIds(text) : text)
+}

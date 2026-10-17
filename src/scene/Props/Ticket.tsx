@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { BackSide, CanvasTexture, Color, FrontSide, Group, MeshStandardMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Vector3 } from 'three'
 import { fixZeroNormals } from '../../lib/safeNormals'
-import { useGameStore, type Win } from '../../store/useGameStore'
+import { useGameStore, shown, type Win } from '../../store/useGameStore'
 import { director } from '../../director/Director'
 import { stage } from '../../director/channels'
 
@@ -103,7 +103,8 @@ export async function drawTicket(win: Win): Promise<CanvasTexture> {
   g.lineTo(cx - 14, 210)
   g.fill()
 
-  const [name, ...rest] = win.entry.cols.length ? win.entry.cols : [win.entry.raw]
+  // on-screen text respects the ID-mask display mode
+  const [name, ...rest] = (win.entry.cols.length ? win.entry.cols : [win.entry.raw]).map(shown)
   g.fillStyle = '#1e140c'
   fitText(g, name, cx, 440, W - stub - 260, 190, '700', '"Playfair Display", serif')
   g.fillStyle = '#5b3f1c'
@@ -145,6 +146,7 @@ function fitText(g: CanvasRenderingContext2D, text: string, x: number, y: number
 /** The ticket mesh (one per draw; texture rebuilt and the old one disposed). */
 export function Ticket() {
   const current = useGameStore((s) => s.current)
+  const maskOn = useGameStore((s) => s.maskIds)
   const group = useRef<Group>(null)
   const mat = useMemo(
     () => new MeshStandardMaterial({ side: FrontSide, color: '#ffffff', roughness: 0.7, metalness: 0, transparent: true, alphaTest: 0.5, emissive: new Color(1, 1, 1), emissiveIntensity: 0.32 }),
@@ -170,7 +172,7 @@ export function Ticket() {
     return () => {
       alive = false
     }
-  }, [current, mat])
+  }, [current, mat, maskOn])
 
   useFrame((s) => {
     const g = group.current

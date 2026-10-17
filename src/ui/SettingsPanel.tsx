@@ -149,6 +149,7 @@ function Advanced() {
           <Toggle label="Sàn phản chiếu" on={q.reflectorRes > 0} onChange={() => put('reflectorRes', q.reflectorRes > 0 ? 0 : 512)} />
           <Choice label="Luồng sáng đèn" value={['off', 'main', 'all'].indexOf(q.cones)} options={['Tắt', 'Chính', 'Tất cả']} onChange={(i) => put('cones', (['off', 'main', 'all'] as const)[i])} />
           <Toggle label="Bụi trong luồng sáng" on={q.dustInCones} onChange={() => put('dustInCones', !q.dustInCones)} />
+          <Choice label="Khói sân khấu" value={q.smoke === 0 ? 0 : q.smoke <= 12 ? 1 : 2} options={['Tắt', 'Ít', 'Nhiều']} onChange={(i) => put('smoke', [0, 10, 22][i])} />
           <Choice label="Khói sàn" value={q.fogLayers === 0 ? 0 : q.fogLayers === 1 ? 1 : 2} options={['Tắt', '1 lớp', '3 lớp']} onChange={(i) => put('fogLayers', [0, 1, 3][i])} />
           <Toggle label="Phát sáng (bloom)" on={q.bloom} onChange={() => put('bloom', !q.bloom)} />
           <Toggle label="Lấy nét điện ảnh (DOF)" on={q.dof} onChange={() => put('dof', !q.dof)} />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { useGameStore } from '../store/useGameStore'
+import { useGameStore, useShown } from '../store/useGameStore'
+import { sampleEntries } from '../lib/sampleData'
 import { parseEntries, tools, MAX_BALLS } from '../lib/parseEntries'
 import { shuffle } from '../lib/shuffle'
 import { director } from '../director/Director'
@@ -28,6 +29,9 @@ export function EntryModal() {
   const listRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const editorOpen = useGameStore((s) => s.editorOpen)
+  const maskOn = useGameStore((s) => s.maskIds)
+  const winnerLimit = useGameStore((s) => s.winnerLimit)
+  const show = useShown()
   const visible = phase === 'EDITING' && editorOpen
   const [mounted, setMounted] = useState(visible)
 
@@ -101,31 +105,42 @@ export function EntryModal() {
           </label>
         </div>
 
-        {/* toolbar */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-brass/15 px-5 py-3 sm:px-8">
-          <Tool onClick={() => apply((t) => shuffle(t.split(/\r?\n/).filter((l) => l.trim())).join('\n'))}>Xáo trộn</Tool>
-          <Tool onClick={() => apply(tools.sortAZ)}>Sắp xếp A→Z</Tool>
-          <Tool onClick={() => apply(tools.dedupe)}>Xóa trùng</Tool>
-          <Tool onClick={() => apply(tools.removeEmpty)}>Xóa dòng trống</Tool>
-          <Tool onClick={() => apply(tools.reverse)}>Đảo ngược</Tool>
-          <Tool onClick={() => fileRef.current?.click()}>Nhập .txt/.csv</Tool>
+        {/* toolbar: one dropdown for the list tools + the draw options */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-brass/15 px-5 py-3 sm:px-8">
+          <ListMenu
+            items={[
+              { label: 'Thêm dữ liệu mẫu', onClick: () => apply((t) => (t.trim() ? t.trimEnd() + '\n' : '') + sampleEntries(30)) },
+              { label: 'Nhập file .txt / .csv', onClick: () => fileRef.current?.click() },
+              { sep: true },
+              { label: 'Xáo trộn', onClick: () => apply((t) => shuffle(t.split(/\r?\n/).filter((l) => l.trim())).join('\n')) },
+              { label: 'Sắp xếp A → Z', onClick: () => apply(tools.sortAZ) },
+              { label: 'Đảo ngược', onClick: () => apply(tools.reverse) },
+              { label: 'Xóa dòng trùng', onClick: () => apply(tools.dedupe) },
+              { label: 'Xóa dòng trống', onClick: () => apply(tools.removeEmpty) },
+              { sep: true },
+              { label: confirmClear ? 'Bấm lần nữa để xóa hết' : 'Xóa hết danh sách', danger: true, keepOpen: !confirmClear, onClick: clearAll },
+            ]}
+          />
           <input ref={fileRef} type="file" accept=".txt,.csv,text/plain,text/csv" className="hidden" onChange={onFile} />
-          <Tool onClick={clearAll} danger={confirmClear}>
-            {confirmClear ? 'Chắc chắn xóa?' : 'Xóa hết'}
-          </Tool>
-          <div className="ml-auto flex items-center gap-3">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={removeWinners}
-              onClick={() => set({ removeWinners: !removeWinners })}
-              className="group flex items-center gap-2 text-[11px] tracking-[0.18em] text-paper/80 uppercase"
-            >
-              <span className={`relative h-4 w-8 rounded-full border transition-colors ${removeWinners ? 'border-brass bg-brass/40' : 'border-muted/50 bg-transparent'}`}>
-                <span className={`absolute top-[1px] h-3 w-3 rounded-full transition-all ${removeWinners ? 'left-[17px] bg-brass-hi' : 'left-[1px] bg-muted'}`} />
-              </span>
-              Loại người đã trúng
-            </button>
+          <Switch on={maskOn} onChange={() => set({ maskIds: !maskOn })} label="Che mã số" hint="225xxxx127" />
+          <label className="flex items-center gap-2 text-[11px] tracking-[0.18em] text-paper/80 uppercase">
+            Số người trúng
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={winnerLimit ?? ''}
+              placeholder="∞"
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10)
+                set({ winnerLimit: Number.isFinite(v) && v > 0 ? v : null })
+              }}
+              className="w-16 border-b border-brass/40 bg-transparent py-0.5 text-center font-mono text-sm text-paper outline-none placeholder:text-muted focus:border-brass-hi"
+              title="Để trống: quay đến khi hết danh sách. Có số: đủ số người trúng thì hạ màn."
+            />
+          </label>
+          <div className="ml-auto">
+            <Switch on={removeWinners} onChange={() => set({ removeWinners: !removeWinners })} label="Loại người đã trúng" />
           </div>
         </div>
 
@@ -161,10 +176,10 @@ export function EntryModal() {
                     return (
                       <div key={e.id} style={{ top: i * ROW, height: ROW }} className="absolute inset-x-0 flex items-center gap-3 border-b border-white/[0.04] px-3 text-sm">
                         <span className="w-10 shrink-0 text-right font-mono text-[11px] text-brass/80">{i + 1}</span>
-                        <span className="truncate text-paper">{e.cols[0]}</span>
+                        <span className="truncate text-paper">{show(e.cols[0])}</span>
                         {e.cols.slice(1).map((c, ci) => (
                           <span key={ci} className="truncate text-xs text-muted">
-                            {c}
+                            {show(c)}
                           </span>
                         ))}
                       </div>
@@ -199,14 +214,62 @@ export function EntryModal() {
   )
 }
 
-function Tool({ children, onClick, danger }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) {
+type MenuItem = { sep: true } | { label: string; onClick: () => void; danger?: boolean; keepOpen?: boolean; sep?: false }
+
+/** "Thao tác ▾": all list tools in one dropdown. */
+function ListMenu({ items }: { items: MenuItem[] }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [open])
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-sm border px-3 py-1.5 text-[11px] tracking-[0.16em] uppercase transition-colors ${danger ? 'border-red-400/80 text-red-300' : 'border-brass/35 text-paper/85 hover:border-brass-hi hover:text-brass-hi'}`}
-    >
-      {children}
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className={`flex items-center gap-2 rounded-sm border px-3 py-1.5 text-[11px] tracking-[0.16em] uppercase transition-colors ${open ? 'border-brass-hi text-brass-hi' : 'border-brass/40 text-paper/85 hover:border-brass-hi hover:text-brass-hi'}`}
+      >
+        Thao tác danh sách <span className={`transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+      </button>
+      {open && (
+        <div role="menu" className="absolute top-full left-0 z-10 mt-1 min-w-[15rem] rounded-sm border border-brass/40 bg-ink/95 py-1 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+          {items.map((it, i) =>
+            it.sep ? (
+              <div key={i} className="my-1 border-t border-brass/15" />
+            ) : (
+              <button
+                key={i}
+                role="menuitem"
+                type="button"
+                onClick={() => {
+                  it.onClick()
+                  if (!it.keepOpen) setOpen(false)
+                }}
+                className={`block w-full px-4 py-2 text-left text-sm transition-colors hover:bg-brass/15 ${it.danger ? 'text-red-300' : 'text-paper/90'}`}
+              >
+                {it.label}
+              </button>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Switch({ on, onChange, label, hint }: { on: boolean; onChange: () => void; label: string; hint?: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} onClick={onChange} className="flex items-center gap-2 text-[11px] tracking-[0.18em] text-paper/80 uppercase" title={hint}>
+      <span className={`relative h-4 w-8 rounded-full border transition-colors ${on ? 'border-brass bg-brass/40' : 'border-muted/50 bg-transparent'}`}>
+        <span className={`absolute top-[1px] h-3 w-3 rounded-full transition-all ${on ? 'left-[17px] bg-brass-hi' : 'left-[1px] bg-muted'}`} />
+      </span>
+      {label}
+      {hint && on && <span className="font-mono text-[10px] tracking-normal text-muted normal-case">{hint}</span>}
     </button>
   )
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useGameStore, type Win } from '../store/useGameStore'
+import { useGameStore, useShown, type Win } from '../store/useGameStore'
 import { toCSV } from '../lib/parseEntries'
 
 /** Stable pseudo-random tilt per ticket (so cards don't reshuffle on re-render). */
@@ -91,7 +91,8 @@ export function HistoryOverlay() {
 }
 
 function TicketCard({ win, index, delay }: { win: Win; index: number; delay: number }) {
-  const [name, ...rest] = win.entry.cols.length ? win.entry.cols : [win.entry.raw]
+  const show = useShown()
+  const [name, ...rest] = (win.entry.cols.length ? win.entry.cols : [win.entry.raw]).map(show)
   const r = tilt(win.serial)
   return (
     <div

@@ -23,6 +23,8 @@ export interface QualityPreset {
   /** Skeleton update rate when host is idle/far (Hz, 0 = every frame) */
   skeletonHz: number
   fogLayers: number
+  /** stage haze puffs in the air (0 = off) */
+  smoke: number
   /** SMAA edge anti-aliasing (MSAA is never used: it breaks the depth-of-field pass) */
   antialias: boolean
 }
@@ -31,22 +33,22 @@ export const QUALITY: Record<QualityLevel, QualityPreset> = {
   low: {
     dpr: [0.75, 1], shadowSize: 0, followShadow: false, softShadows: false, reflectorRes: 0,
     cones: 'off', dustInCones: false, bloom: false, dof: false, chroma: false, grain: false, motionBlur: false, confetti: 120, hostShadow: false, hostRim: false, fullIK: false, skeletonHz: 30,
-    fogLayers: 0, antialias: false,
+    fogLayers: 0, smoke: 0, antialias: false,
   },
   medium: {
     dpr: [1, 1.25], shadowSize: 1024, followShadow: false, softShadows: false, reflectorRes: 0,
     cones: 'main', dustInCones: false, bloom: true, dof: false, chroma: false, grain: false, motionBlur: false, confetti: 200, hostShadow: true, hostRim: false, fullIK: false, skeletonHz: 0,
-    fogLayers: 0, antialias: true,
+    fogLayers: 1, smoke: 10, antialias: true,
   },
   high: {
     dpr: [1, 1.5], shadowSize: 1024, followShadow: false, softShadows: false, reflectorRes: 0,
     cones: 'all', dustInCones: false, bloom: true, dof: true, chroma: true, grain: false, motionBlur: false, confetti: 300, hostShadow: true, hostRim: true, fullIK: false, skeletonHz: 0,
-    fogLayers: 1, antialias: true,
+    fogLayers: 1, smoke: 16, antialias: true,
   },
   ultra: {
     dpr: [1, 2], shadowSize: 2048, followShadow: true, softShadows: true, reflectorRes: 512,
     cones: 'all', dustInCones: true, bloom: true, dof: true, chroma: true, grain: true, motionBlur: true, confetti: 400, hostShadow: true, hostRim: true, fullIK: true, skeletonHz: 0,
-    fogLayers: 3, antialias: true,
+    fogLayers: 3, smoke: 24, antialias: true,
   },
 }
 

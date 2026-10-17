@@ -60,7 +60,8 @@ function makeVelvet(side: -1 | 1 | 0) {
           float depth = 0.05 + uOpen * 0.11;
           float folds = sin(u * 3.14159 * 2.0 * 13.0) * depth + sin(u * 3.14159 * 2.0 * 5.3 + 1.7) * depth * 0.35;
           float w = uWave * (sin(u * 9.0 - uTime * 1.7 + v * 2.0) * 0.06 + sin(u * 23.0 + uTime * 1.1) * 0.02) * (1.0 - v * 0.6);
-          float poke = uPoke * exp(-pow((x - uPokeX) * 2.5, 2.0)) * sin(uTime * 9.0) * 0.06 * (1.0 - v);
+          float pd = (x - uPokeX) * 2.5;
+          float poke = uPoke * exp(-pd * pd) * sin(uTime * 9.0) * 0.06 * (1.0 - v);
           p = vec3(x, v * H, folds + w + poke);
           return p;
         }`,

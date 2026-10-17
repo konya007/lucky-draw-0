@@ -1,6 +1,6 @@
 import gsap from 'gsap'
 import { Camera, Quaternion, Vector3 } from 'three'
-import { useGameStore, ballsFor, type Phase } from '../store/useGameStore'
+import { useGameStore, ballsFor, shown as displayed, type Phase } from '../store/useGameStore'
 import { parseEntries } from '../lib/parseEntries'
 import { vrand } from '../lib/random'
 import { audio } from '../audio/audioManager'
@@ -73,6 +73,9 @@ class Director {
   private ticketDown: number | null = null
   private packResolve: (() => void) | null = null
   private spunOnce = false
+  /** winners drawn since "Tiến hành quay số" (for the winner limit) */
+  private sessionWins = 0
+  private endRequested = false
   private drawn: Ball | null = null
 
   // ------------------------------------------------------------- phase helper
@@ -112,6 +115,8 @@ class Director {
   async start() {
     const s = g()
     if (s.phase !== 'EDITING') return
+    this.sessionWins = 0
+    this.endRequested = false
     await audio.unlock()
     audio.setLoop('music', 0.55, 2)
     const n = s.buildPool()
@@ -147,7 +152,7 @@ class Director {
     const cards = shown.map((e, i) => {
       const b = balls[i % count]
       const p = this.project(b.pos)
-      return { text: e.cols[0] || e.raw, ball: b.i, x: p.x, y: p.y, color: `#${b.color.clone().convertLinearToSRGB().getHexString()}` }
+      return { text: displayed(e.cols[0] || e.raw), ball: b.i, x: p.x, y: p.y, color: `#${b.color.clone().convertLinearToSRGB().getHexString()}` }
     })
     const done = new Promise<void>((r) => (this.packResolve = r))
     g().set({ packing: { cards } })
@@ -437,7 +442,7 @@ class Director {
     await tween(b.pos, { x: OUTLET.point.x, y: OUTLET.point.y, z: OUTLET.point.z, duration: 0.16, ease: 'power2.in' })
     await tween(b.pos, { x: lip.x, y: lip.y, z: lip.z, duration: 0.08, ease: 'none' })
     // the result is decided now, as the ball leaves the cage (crypto RNG)
-    g().drawWinner()
+    if (g().drawWinner()) this.sessionWins++
     host.express('surprised', 1.2)
     const dir = CHUTE.end.clone().sub(CHUTE.start).normalize()
     const sp = vrand(0.9, 1.4)
@@ -727,7 +732,9 @@ class Director {
   /** Back to the crank, refill the drum if the pool allows, or finish. */
   private async afterDraw() {
     const s = g()
-    if (!s.pool.length) return this.finish()
+    // the show ends when the list runs out, the winner quota is met, or "hạ màn" was asked for
+    const limit = s.winnerLimit
+    if (!s.pool.length || (limit !== null && this.sessionWins >= limit) || this.endRequested) return this.finish()
     host.setState('walking')
     host.lookAt(null)
     cameraDirector.setShot('idle')
@@ -757,6 +764,24 @@ class Director {
   }
 
   // ============================================================= FINISHED
+  /**
+   * "Hạ màn" requested by the player: idle → end now; ticket on display → file it, then end;
+   * mid-draw → finish this draw first, then end.
+   */
+  requestEnd() {
+    const p = g().phase
+    if (p === 'EDITING' || p === 'FINISHED' || this.endRequested) return
+    this.endRequested = true
+    audio.play('lock', { vol: 0.5 })
+    if (p === 'IDLE_READY') {
+      this.nudge?.kill()
+      void this.finish()
+    } else if (p === 'TICKET_SHOWN') void this.stashTicket(true)
+  }
+  get ending() {
+    return this.endRequested
+  }
+
   private async finish() {
     if (!this.phase('FINISHED')) return
     stage.invited = 'none'

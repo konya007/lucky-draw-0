@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react'
 import { useGameStore } from '../store/useGameStore'
 import { director } from '../director/Director'
 import { audio } from '../audio/audioManager'
 
-/** First screen after loading: the closed curtain, the event title and two buttons. */
+/** First screen after loading: the closed curtain, the event title, the two main buttons and a row for past winners. */
 export function HomeScreen() {
   const ready = useGameStore((s) => s.sceneReady)
   const phase = useGameStore((s) => s.phase)
@@ -34,6 +35,41 @@ export function HomeScreen() {
           Cài đặt
         </button>
       </div>
+      <HomeExtras />
+    </div>
+  )
+}
+
+/** Second row: winners so far and clearing the results (the winner quota lives in the list editor). */
+function HomeExtras() {
+  const count = useGameStore((s) => s.history.length)
+  const set = useGameStore((s) => s.set)
+  const clear = useGameStore((s) => s.clearHistory)
+  const [confirm, setConfirm] = useState(false)
+  useEffect(() => {
+    if (!confirm) return
+    const t = setTimeout(() => setConfirm(false), 3000)
+    return () => clearTimeout(t)
+  }, [confirm])
+  const small = 'rounded-sm border px-4 py-2 text-[11px] tracking-[0.2em] uppercase transition-colors disabled:opacity-40'
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+      <button type="button" onClick={() => set({ historyOpen: true })} className={`${small} border-brass/40 bg-black/40 text-paper/85 hover:border-brass-hi hover:text-brass-hi`}>
+        Người đã trúng ({count})
+      </button>
+      <button
+        type="button"
+        disabled={!count}
+        onClick={() => {
+          if (!confirm) return setConfirm(true)
+          clear()
+          setConfirm(false)
+          audio.play('paper', { vol: 0.5 })
+        }}
+        className={`${small} ${confirm ? 'border-red-400/80 bg-black/60 text-red-200' : 'border-brass/40 bg-black/40 text-paper/85 hover:border-red-300 hover:text-red-200'}`}
+      >
+        {confirm ? 'Bấm lần nữa để xóa' : 'Xóa kết quả'}
+      </button>
     </div>
   )
 }
