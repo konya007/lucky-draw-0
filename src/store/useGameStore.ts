@@ -73,6 +73,8 @@ interface GameState {
   title: string
   removeWinners: boolean
   history: Win[]
+  /** winners struck off because they weren't there: out of the history, and never drawn again */
+  absent: Win[]
   /** Entries still in the draw pool. */
   pool: Entry[]
   // ---- runtime ----
@@ -100,6 +102,10 @@ interface GameState {
   setTitle: (t: string) => void
   setRemoveWinners: (v: boolean) => void
   buildPool: () => number
+  /** Strike a ticket off the history. 'return': the entry goes back into the draw; 'absent': it stays out. */
+  removeWin: (serial: string, mode: 'return' | 'absent') => void
+  /** Put an absent winner back into the draw. */
+  restoreAbsent: (serial: string) => void
   /** Pick a winner from the pool at the moment the ball leaves the cage. */
   drawWinner: () => Win | null
   set: (p: Partial<GameState>) => void
@@ -115,6 +121,7 @@ export const useGameStore = create<GameState>()(
       title: 'GRAND DRAW',
       removeWinners: true,
       history: [],
+      absent: [],
       pool: [],
       current: null,
       sceneReady: false,
@@ -145,10 +152,12 @@ export const useGameStore = create<GameState>()(
       buildPool: () => {
         const { entries } = parseEntries(get().text)
         let pool = entries
-        if (get().removeWinners && get().history.length) {
+        // absent winners are always out; previous winners only when "remove winners" is on
+        const out = [...get().absent, ...(get().removeWinners ? get().history : [])]
+        if (out.length) {
           // Remove one occurrence per previous win (matched by raw text) so a resumed session stays fair.
           const won = new Map<string, number>()
-          for (const w of get().history) won.set(w.entry.raw, (won.get(w.entry.raw) ?? 0) + 1)
+          for (const w of out) won.set(w.entry.raw, (won.get(w.entry.raw) ?? 0) + 1)
           pool = entries.filter((e) => {
             const n = won.get(e.raw) ?? 0
             if (n > 0) {
@@ -180,7 +189,31 @@ export const useGameStore = create<GameState>()(
         return win
       },
       set: (p) => set(p),
-      clearHistory: () => set({ history: [] }),
+      clearHistory: () => set({ history: [], absent: [] }),
+      removeWin: (serial, mode) => {
+        const { history, absent, pool, removeWinners, phase } = get()
+        const win = history.find((w) => w.serial === serial)
+        if (!win) return
+        const live = phase !== 'EDITING'
+        let nextPool = pool
+        // during a session the pool is live: put the entry back, or take its remaining copy out
+        if (live && mode === 'return' && removeWinners) nextPool = [...pool, win.entry]
+        if (live && mode === 'absent' && !removeWinners) {
+          const i = pool.findIndex((e) => e.raw === win.entry.raw)
+          if (i >= 0) nextPool = pool.filter((_, j) => j !== i)
+        }
+        set({
+          history: history.filter((w) => w.serial !== serial),
+          absent: mode === 'absent' ? [...absent, win] : absent,
+          pool: nextPool,
+        })
+      },
+      restoreAbsent: (serial) => {
+        const { absent, pool, phase } = get()
+        const win = absent.find((w) => w.serial === serial)
+        if (!win) return
+        set({ absent: absent.filter((w) => w.serial !== serial), pool: phase !== 'EDITING' ? [...pool, win.entry] : pool })
+      },
     }),
     {
       name: 'grand-draw:game',
@@ -189,9 +222,10 @@ export const useGameStore = create<GameState>()(
       migrate: (persisted, version) => {
         const p = (persisted ?? {}) as Record<string, unknown>
         if (version < 2) p.hostModel = 'fox'
+        if (!Array.isArray(p.absent)) p.absent = []
         return p as never
       },
-      partialize: (s) => ({ text: s.text, title: s.title, removeWinners: s.removeWinners, history: s.history, hintShown: s.hintShown, maskIds: s.maskIds, winnerLimit: s.winnerLimit, hostModel: s.hostModel }),
+      partialize: (s) => ({ text: s.text, title: s.title, removeWinners: s.removeWinners, history: s.history, absent: s.absent, hintShown: s.hintShown, maskIds: s.maskIds, winnerLimit: s.winnerLimit, hostModel: s.hostModel }),
     },
   ),
 )

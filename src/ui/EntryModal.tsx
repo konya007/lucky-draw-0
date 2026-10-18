@@ -24,6 +24,7 @@ export function EntryModal() {
   const title = useGameStore((s) => s.title)
   const removeWinners = useGameStore((s) => s.removeWinners)
   const historyCount = useGameStore((s) => s.history.length)
+  const absentCount = useGameStore((s) => s.absent.length)
   const ready = useGameStore((s) => s.sceneReady)
   const progress = useGameStore((s) => s.loadProgress)
   const set = useGameStore((s) => s.set)
@@ -229,9 +230,10 @@ export function EntryModal() {
                 </div>
               )}
             </div>
-            {historyCount > 0 && (
+            {(historyCount > 0 || absentCount > 0) && (
               <div className="mt-2 text-[11px] tracking-wide text-muted">
-                {historyCount} lượt đã quay trước đó{removeWinners ? ', người đã trúng sẽ được loại khỏi lượt mới' : ''}.
+                {historyCount > 0 && <>{historyCount} lượt đã quay trước đó{removeWinners ? ', người đã trúng sẽ được loại khỏi lượt mới' : ''}. </>}
+                {absentCount > 0 && <>{absentCount} người vắng mặt không được quay lại.</>}
               </div>
             )}
           </div>
