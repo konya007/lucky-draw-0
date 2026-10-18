@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useGameStore, useShown } from '../store/useGameStore'
 import { sampleEntries } from '../lib/sampleData'
+import { RIGS } from '../scene/Host/rigs'
 import { parseEntries, tools, MAX_BALLS } from '../lib/parseEntries'
 import { shuffle } from '../lib/shuffle'
 import { director } from '../director/Director'
@@ -9,6 +10,9 @@ import { director } from '../director/Director'
 export const previewRect = { current: null as DOMRect | null }
 
 const ROW = 34
+
+// 3D preview is code-split (it pulls in three.js only when the editor opens)
+const CharacterPreview = lazy(() => import('./CharacterPreview'))
 
 /**
  * The single 2D screen: paste/edit the list over the closed curtain.
@@ -31,7 +35,10 @@ export function EntryModal() {
   const editorOpen = useGameStore((s) => s.editorOpen)
   const maskOn = useGameStore((s) => s.maskIds)
   const winnerLimit = useGameStore((s) => s.winnerLimit)
+  const hostModel = useGameStore((s) => s.hostModel)
   const show = useShown()
+  const [tab, setTab] = useState<'input' | 'preview'>('input')
+  const rigLabel = RIGS.find((r) => r.id === hostModel)?.label ?? ''
   const visible = phase === 'EDITING' && editorOpen
   const [mounted, setMounted] = useState(visible)
 
@@ -122,6 +129,20 @@ export function EntryModal() {
             ]}
           />
           <input ref={fileRef} type="file" accept=".txt,.csv,text/plain,text/csv" className="hidden" onChange={onFile} />
+          <label className="flex items-center gap-2 text-[11px] tracking-[0.18em] text-paper/80 uppercase">
+            Nhân vật
+            <select
+              value={hostModel}
+              onChange={(e) => set({ hostModel: e.target.value })}
+              className="rounded-sm border border-brass/40 bg-ink px-2 py-1 text-[12px] tracking-wide text-paper normal-case outline-none hover:border-brass-hi focus:border-brass-hi"
+            >
+              {RIGS.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <Switch on={maskOn} onChange={() => set({ maskIds: !maskOn })} label="Che mã số" hint="225xxxx127" />
           <label className="flex items-center gap-2 text-[11px] tracking-[0.18em] text-paper/80 uppercase">
             Số người trúng
@@ -144,47 +165,67 @@ export function EntryModal() {
           </div>
         </div>
 
-        {/* body */}
+        {/* body: left = list (input / preview tabs), right = the host holding the ballot box */}
         <div className="flex min-h-0 flex-1 flex-col gap-4 p-5 sm:flex-row sm:px-8">
-          <div className="flex min-h-[10rem] flex-[3] flex-col">
-            <textarea
-              value={text}
-              onChange={(e) => set({ text: e.target.value })}
-              spellCheck={false}
-              placeholder={'Mỗi dòng một mục. Có thể dùng `Tên | Giải thưởng | Ghi chú`\n\nNguyễn Văn An | Giải Nhất | Phòng Kỹ thuật\nTrần Thị Bình | Giải Nhì\nLê Hoàng Cường'}
-              className="scroll-thin h-full w-full resize-none rounded border border-brass/25 bg-black/50 p-4 font-mono text-[13px] leading-[1.7] text-paper outline-none placeholder:text-muted/45 focus:border-brass/60"
-            />
-          </div>
-          <div className="flex min-h-[8rem] flex-[2] flex-col">
-            <div className="mb-2 grid grid-cols-4 gap-2 text-center">
-              <Stat label="Tổng dòng" value={stats.total} />
-              <Stat label="Trùng" value={stats.duplicates} />
-              <Stat label="Trống bỏ qua" value={stats.empty} />
-              <Stat label={`Quả cầu (≤${MAX_BALLS})`} value={stats.balls} accent />
+          <div className="flex min-h-[14rem] flex-[3] flex-col">
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <div role="tablist" className="flex overflow-hidden rounded-sm border border-brass/40">
+                {(['input', 'preview'] as const).map((t) => (
+                  <button
+                    key={t}
+                    role="tab"
+                    type="button"
+                    aria-selected={tab === t}
+                    onClick={() => setTab(t)}
+                    className={`px-4 py-1.5 text-[11px] tracking-[0.18em] uppercase transition-colors ${tab === t ? 'bg-brass/70 text-ink' : 'text-paper/85 hover:bg-brass/15'}`}
+                  >
+                    {t === 'input' ? 'Nhập' : `Xem trước (${stats.total})`}
+                  </button>
+                ))}
+              </div>
+              <div className="ml-auto flex flex-wrap gap-3 text-[10px] tracking-[0.15em] text-muted uppercase">
+                <span>
+                  Trùng <b className="font-serif text-sm text-paper">{stats.duplicates}</b>
+                </span>
+                <span>
+                  Trống bỏ qua <b className="font-serif text-sm text-paper">{stats.empty}</b>
+                </span>
+                <span>
+                  Quả cầu (≤{MAX_BALLS}) <b className="font-serif text-sm text-brass-hi">{stats.balls}</b>
+                </span>
+              </div>
             </div>
-            <div
-              ref={listRef}
-              onScroll={(e) => setScroll(e.currentTarget.scrollTop)}
-              className="scroll-thin relative min-h-0 flex-1 overflow-y-auto rounded border border-brass/15 bg-black/30"
-            >
-              {entries.length === 0 ? (
-                <div className="flex h-full items-center justify-center p-6 text-center font-serif text-muted italic">Danh sách xem trước sẽ hiện ở đây</div>
+            <div ref={listRef} className="relative min-h-0 flex-1">
+              {tab === 'input' ? (
+                <textarea
+                  value={text}
+                  onChange={(e) => set({ text: e.target.value })}
+                  spellCheck={false}
+                  placeholder={'Mỗi dòng một mục. Có thể dùng `Tên | Giải thưởng | Ghi chú`\n\nNguyễn Văn An | Giải Nhất | Phòng Kỹ thuật\nTrần Thị Bình | Giải Nhì\nLê Hoàng Cường'}
+                  className="scroll-thin absolute inset-0 h-full w-full resize-none rounded border border-brass/25 bg-black/50 p-4 font-mono text-[13px] leading-[1.7] text-paper outline-none placeholder:text-muted/45 focus:border-brass/60"
+                />
               ) : (
-                <div style={{ height: entries.length * ROW }} className="relative">
-                  {entries.slice(first, last).map((e, k) => {
-                    const i = first + k
-                    return (
-                      <div key={e.id} style={{ top: i * ROW, height: ROW }} className="absolute inset-x-0 flex items-center gap-3 border-b border-white/[0.04] px-3 text-sm">
-                        <span className="w-10 shrink-0 text-right font-mono text-[11px] text-brass/80">{i + 1}</span>
-                        <span className="truncate text-paper">{show(e.cols[0])}</span>
-                        {e.cols.slice(1).map((c, ci) => (
-                          <span key={ci} className="truncate text-xs text-muted">
-                            {show(c)}
-                          </span>
-                        ))}
-                      </div>
-                    )
-                  })}
+                <div onScroll={(e) => setScroll(e.currentTarget.scrollTop)} className="scroll-thin absolute inset-0 overflow-y-auto rounded border border-brass/15 bg-black/30">
+                  {entries.length === 0 ? (
+                    <div className="flex h-full items-center justify-center p-6 text-center font-serif text-muted italic">Danh sách xem trước sẽ hiện ở đây</div>
+                  ) : (
+                    <div style={{ height: entries.length * ROW }} className="relative">
+                      {entries.slice(first, last).map((e, k) => {
+                        const i = first + k
+                        return (
+                          <div key={e.id} style={{ top: i * ROW, height: ROW }} className="absolute inset-x-0 flex items-center gap-3 border-b border-white/[0.04] px-3 text-sm">
+                            <span className="w-10 shrink-0 text-right font-mono text-[11px] text-brass/80">{i + 1}</span>
+                            <span className="truncate text-paper">{show(e.cols[0])}</span>
+                            {e.cols.slice(1).map((c, ci) => (
+                              <span key={ci} className="truncate text-xs text-muted">
+                                {show(c)}
+                              </span>
+                            ))}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -194,11 +235,17 @@ export function EntryModal() {
               </div>
             )}
           </div>
+          <div className="relative hidden min-h-[14rem] flex-[2] overflow-hidden rounded border border-brass/15 bg-[radial-gradient(ellipse_at_50%_35%,rgba(184,137,59,0.18),transparent_65%)] sm:block">
+            <Suspense fallback={null}>
+              <CharacterPreview />
+            </Suspense>
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-serif text-sm tracking-[0.2em] text-paper/70">{rigLabel}</div>
+          </div>
         </div>
 
         {/* footer */}
         <div className="flex items-center justify-between gap-4 border-t border-brass/25 px-5 py-4 sm:px-8">
-          <div className="hidden text-[11px] tracking-wide text-muted sm:block">Dán trực tiếp từ Excel/Sheets. Hỗ trợ dấu phân cách | , và Tab.</div>
+          <ResultsButtons />
           <button
             type="button"
             disabled={!canStart}
@@ -274,11 +321,36 @@ function Switch({ on, onChange, label, hint }: { on: boolean; onChange: () => vo
   )
 }
 
-function Stat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+
+/** Past results: open the winners' ticket gallery, or clear them (second click confirms). */
+function ResultsButtons() {
+  const count = useGameStore((s) => s.history.length)
+  const set = useGameStore((s) => s.set)
+  const clear = useGameStore((s) => s.clearHistory)
+  const [confirm, setConfirm] = useState(false)
+  useEffect(() => {
+    if (!confirm) return
+    const t = setTimeout(() => setConfirm(false), 3000)
+    return () => clearTimeout(t)
+  }, [confirm])
+  const small = 'rounded-sm border px-3 py-1.5 text-[11px] tracking-[0.16em] uppercase transition-colors disabled:opacity-40'
   return (
-    <div className="rounded border border-brass/15 bg-black/30 px-1 py-2">
-      <div className={`font-serif text-xl ${accent ? 'text-brass-hi' : 'text-paper'}`}>{value.toLocaleString('vi-VN')}</div>
-      <div className="mt-0.5 text-[9px] tracking-[0.15em] text-muted uppercase">{label}</div>
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" onClick={() => set({ historyOpen: true })} className={`${small} border-brass/40 text-paper/85 hover:border-brass-hi hover:text-brass-hi`}>
+        Người đã trúng ({count})
+      </button>
+      <button
+        type="button"
+        disabled={!count}
+        onClick={() => {
+          if (!confirm) return setConfirm(true)
+          clear()
+          setConfirm(false)
+        }}
+        className={`${small} ${confirm ? 'border-red-400/80 text-red-200' : 'border-brass/40 text-paper/85 hover:border-red-300 hover:text-red-200'}`}
+      >
+        {confirm ? 'Bấm lần nữa để xóa' : 'Xóa kết quả'}
+      </button>
     </div>
   )
 }

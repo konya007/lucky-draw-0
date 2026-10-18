@@ -83,8 +83,8 @@ export async function drawTicket(win: Win): Promise<CanvasTexture> {
   // body
   const cx = stub + (W - stub) / 2
   g.textAlign = 'center'
-  g.fillStyle = '#9a7a46'
-  g.font = '500 34px Inter, sans-serif'
+  g.fillStyle = '#6e4a17'
+  g.font = '600 44px Inter, sans-serif'
   spaced(g, (win.title || 'GRAND DRAW').toUpperCase(), cx, 170, 12)
   // ornament
   g.strokeStyle = '#b8893b'
@@ -105,18 +105,21 @@ export async function drawTicket(win: Win): Promise<CanvasTexture> {
 
   // on-screen text respects the ID-mask display mode
   const [name, ...rest] = (win.entry.cols.length ? win.entry.cols : [win.entry.raw]).map(shown)
-  g.fillStyle = '#1e140c'
-  fitText(g, name, cx, 440, W - stub - 260, 190, '700', '"Playfair Display", serif')
-  g.fillStyle = '#5b3f1c'
-  if (rest[0]) fitText(g, rest[0], cx, 590, W - stub - 300, 90, '400', '"Playfair Display", serif', true)
-  if (rest.length > 1) {
-    g.fillStyle = '#7d6440'
-    fitText(g, rest.slice(1).join('  ·  '), cx, 690, W - stub - 300, 48, '400', 'Inter, sans-serif')
+  // big, high-contrast lines: readable on a projector from the back of the room
+  g.fillStyle = '#0d0703'
+  fitText(g, name, cx, 480, W - stub - 200, 270, '800', '"Playfair Display", serif')
+  if (rest[0]) {
+    g.fillStyle = '#7a1f12'
+    fitText(g, rest[0], cx, 660, W - stub - 240, 150, '700', 'Inter, sans-serif', false, 6)
   }
-  g.fillStyle = '#9a7a46'
-  g.font = '400 34px Inter, sans-serif'
+  if (rest.length > 1) {
+    g.fillStyle = '#3d2a12'
+    fitText(g, rest.slice(1).join('  ·  '), cx, 780, W - stub - 260, 76, '600', 'Inter, sans-serif')
+  }
+  g.fillStyle = '#6e5232'
+  g.font = '500 38px Inter, sans-serif'
   const d = new Date(win.at)
-  spaced(g, d.toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' }).toUpperCase(), cx, 880, 4)
+  spaced(g, d.toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' }).toUpperCase(), cx, 900, 4)
 
   const t = new CanvasTexture(c)
   t.colorSpace = SRGBColorSpace
@@ -131,7 +134,8 @@ function spaced(g: CanvasRenderingContext2D, text: string, x: number, y: number,
   g.restore()
 }
 
-function fitText(g: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, size: number, weight: string, family: string, italic = false) {
+function fitText(g: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, size: number, weight: string, family: string, italic = false, spacing = 0) {
+  ;(g as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${spacing}px`
   let s = size
   do {
     g.font = `${italic ? 'italic ' : ''}${weight} ${s}px ${family}`
@@ -141,6 +145,7 @@ function fitText(g: CanvasRenderingContext2D, text: string, x: number, y: number
   let t = text
   while (g.measureText(t).width > maxW && t.length > 3) t = t.slice(0, -2) + '…'
   g.fillText(t, x, y)
+  ;(g as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = '0px'
 }
 
 /** The ticket mesh (one per draw; texture rebuilt and the old one disposed). */

@@ -71,6 +71,8 @@ export const STAGE = {
 export const HOST_RADIUS = 0.3
 export const MARKS = {
   wing: new Vector3(-4.6, 0, -0.7),
+  /** on the apron in front of the closed curtain, holding the ballot box while the cards drop in */
+  pack: new Vector3(0, 0, 2.1),
   /** right of the crank (crank sweep reaches x≈0.76) */
   crank: new Vector3(1.12, 0, 0.18),
   /** at the right end of the table (edge x≈0.48), reaching to the tray from the side */

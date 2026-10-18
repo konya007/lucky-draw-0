@@ -44,8 +44,8 @@ Mỗi lần phát, game tự đổi cao độ ±8% và tiếng trong lồng phá
 | `tick` | Rê chuột lên đạo cụ, nút | Click rất nhỏ |
 | `ratchet` | Xoay núm chọn chất lượng đồ họa | |
 | `lock` | Bấm vào thứ đang bị khóa (vd. cần quay lúc lồng đang quay) | |
-| `voiceStart` | Nhân vật chào ("Bắt đầu nào!") | **Chỉ có tiếng khi có file** |
-| `voiceCongrats` | Lúc hiện vé ("Chúc mừng!") | **Chỉ có tiếng khi có file** |
+| `voiceStart` | Nhân vật chào ("Bắt đầu nào!") | **Chỉ có tiếng khi có file** · có thể tách theo nhân vật, xem bên dưới |
+| `voiceCongrats` | Lúc hiện vé ("Chúc mừng!") | **Chỉ có tiếng khi có file** · có thể tách theo nhân vật, xem bên dưới |
 
 ### Âm nền (phát lặp liên tục)
 
@@ -54,6 +54,17 @@ Mỗi lần phát, game tự đổi cao độ ±8% và tiếng trong lồng phá
 | `music` | Nhạc nền | Cello/piano chậm, loop liền mạch (đầu và cuối khớp nhau) |
 | `room` | Tiếng phòng hát lớn (room tone) | Rất nhỏ, 5–10 s loop |
 | `drumroll` | Trống dồn lúc lồng chậm lại và lúc trình diện quả cầu | Loop 1–2 s, game tự tăng/giảm âm lượng |
+
+## Giọng nói riêng cho từng nhân vật
+
+Mỗi nhân vật có thể có câu thoại riêng. Thêm hậu tố `_<mã nhân vật>` vào tên file:
+
+| Nhân vật | Mã | Câu chào | Câu chúc mừng |
+|---|---|---|---|
+| Cô gái anime | `anime` | `voiceStart_anime.mp3` | `voiceCongrats_anime.mp3` |
+| MrBeast | `mrbeast` | `voiceStart_mrbeast.mp3` | `voiceCongrats_mrbeast.mp3` |
+
+Thứ tự game tìm: file riêng của nhân vật đang chọn → file chung (`voiceStart.mp3`) → tiếng tổng hợp. Giọng nói phát đúng cao độ gốc, không bị đổi pitch ngẫu nhiên như hiệu ứng.
 
 ## Âm lượng
 

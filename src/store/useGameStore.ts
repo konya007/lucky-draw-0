@@ -90,6 +90,8 @@ interface GameState {
   maskIds: boolean
   /** stop after this many winners in a session (null = keep drawing until the pool is empty) */
   winnerLimit: number | null
+  /** which host character presents the show (rig id, see scene/Host/rigs) */
+  hostModel: string
   /** cards flying from the editor into the balls (PACKING) */
   packing: { cards: PackCard[] } | null
   setPhase: (p: Phase) => boolean
@@ -124,6 +126,7 @@ export const useGameStore = create<GameState>()(
       editorOpen: false,
       maskIds: false,
       winnerLimit: null,
+      hostModel: 'fox',
       packing: null,
       setPhase: (p) => {
         const cur = get().phase
@@ -181,7 +184,14 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'grand-draw:game',
-      partialize: (s) => ({ text: s.text, title: s.title, removeWinners: s.removeWinners, history: s.history, hintShown: s.hintShown, maskIds: s.maskIds, winnerLimit: s.winnerLimit }),
+      // v2: the fox became the main host — move existing saves to it once
+      version: 2,
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Record<string, unknown>
+        if (version < 2) p.hostModel = 'fox'
+        return p as never
+      },
+      partialize: (s) => ({ text: s.text, title: s.title, removeWinners: s.removeWinners, history: s.history, hintShown: s.hintShown, maskIds: s.maskIds, winnerLimit: s.winnerLimit, hostModel: s.hostModel }),
     },
   ),
 )

@@ -1,18 +1,18 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
 import { Box3, CanvasTexture, Color, DataTexture, Material, Mesh, MeshBasicMaterial, MeshToonMaterial, NearestFilter, Object3D, RedFormat, SkinnedMesh, Texture, Vector3 } from 'three'
 import { SkeletonUtils } from 'three-stdlib'
-import { host, baseName } from './useHostAnimator'
+import { host } from './useHostAnimator'
+import { rigById, RIGS, type HostRig } from './rigs'
+import { useGameStore } from '../../store/useGameStore'
 import { fixZeroNormals } from '../../lib/safeNormals'
 import { assetUrl } from '../../lib/assetUrl'
 import { director } from '../../director/Director'
 import { useQuality } from '../../quality/qualityPresets'
 
-export const HOST_URL = assetUrl('host.glb')
-const TARGET_HEIGHT = 1.6
 
 /** 3-step toon ramp so the anime shading reacts to stage lights without looking plastic. */
 function toonRamp() {
@@ -54,63 +54,109 @@ function toToon(src: Material, ramp: Texture): MeshToonMaterial {
   return m
 }
 
-/** Host character: loads the compressed GLB, normalizes scale/facing, converts unlit → toon, drives the animator. */
+/**
+ * Host character: the model picked in the list editor (rigs/). Each model loads in its own Suspense
+ * boundary so switching never blanks the rest of the stage.
+ */
 export function Host() {
-  const gltf = useGLTF(HOST_URL, false, true)
+  const rig = rigById(useGameStore((s) => s.hostModel))
+  return (
+    <>
+      {/* host.root is one shared object for every character: mounted once here, never re-keyed.
+          (Re-mounting the same object in a new <primitive> made r3f wipe its internal state → crash.) */}
+      <primitive
+        object={host.root}
+        onPointerDown={(e: { stopPropagation: () => void }) => {
+          e.stopPropagation()
+          director.hostTap()
+        }}
+      />
+      <Suspense fallback={null}>
+        <HostModel key={rig.id} rig={rig} />
+      </Suspense>
+      <HostShadow />
+    </>
+  )
+}
+
+/**
+ * Clone a character GLB and make it stage-ready: materials (toon for unlit exports), safe normals,
+ * height normalised to the rig, feet on the floor, toes facing +Z, centred. Used by the stage host
+ * and the editor preview.
+ */
+export function prepareHostModel(source: Object3D, rig: HostRig): Object3D {
+  const scene = SkeletonUtils.clone(source) as Object3D
+  const ramp = toonRamp()
+  const cache = new Map<Material, MeshToonMaterial>()
+  scene.traverse((o) => {
+    const mesh = o as Mesh
+    if (!mesh.isMesh) return
+    mesh.frustumCulled = false
+    if (rig.materials !== 'toon') {
+      if (!mesh.geometry.attributes.normal) mesh.geometry.computeVertexNormals()
+      fixZeroNormals(mesh.geometry, 0, 1, 0)
+      return // keep the model's own lit (PBR) materials
+    }
+    // unlit exports may ship without normals; lit toon shading needs them
+    if (!mesh.geometry.attributes.normal) mesh.geometry.computeVertexNormals()
+    // degenerate vertices can carry zero normals → NaN in the toon/rim shading → black flicker
+    fixZeroNormals(mesh.geometry, 0, 1, 0)
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    const conv = mats.map((mm) => {
+      if (!cache.has(mm)) cache.set(mm, toToon(mm, ramp))
+      return cache.get(mm)!
+    })
+    mesh.material = Array.isArray(mesh.material) ? conv : conv[0]
+  })
+  // normalize height (skinned bounds) and stand on the floor
+  scene.updateMatrixWorld(true)
+  // bone matrices are only computed at render time; skinned bounds need them now
+  scene.traverse((o) => (o as SkinnedMesh).isSkinnedMesh && (o as SkinnedMesh).skeleton.update())
+  const box = new Box3().setFromObject(scene, true)
+  const h = box.max.y - box.min.y
+  const s = h > 0.01 ? rig.height / h : 1
+  const wrap = new Object3D()
+  wrap.name = 'HostModel'
+  wrap.add(scene)
+  wrap.scale.setScalar(s)
+  wrap.position.y = -box.min.y * s
+  wrap.updateMatrixWorld(true)
+  // facing: turn the model so its toes point +Z (exports face +Z, -Z or sideways), then centre it
+  let ankle: Object3D | null = null
+  let toe: Object3D | null = null
+  scene.traverse((o) => {
+    const b = rig.baseName(o.name)
+    if (b === rig.bones.lAnkle) ankle = o
+    if (b === rig.bones.lToe) toe = o
+  })
+  if (ankle && toe) {
+    const a = (ankle as Object3D).getWorldPosition(new Vector3())
+    const t = (toe as Object3D).getWorldPosition(new Vector3())
+    wrap.rotation.y = -Math.atan2(t.x - a.x, t.z - a.z)
+    wrap.updateMatrixWorld(true)
+  }
+  // centre on the bounds, or on the hips when a big tail/cape would drag the bounds' centre backwards
+  let hips: Object3D | null = null
+  if (rig.centreOn === 'hips') scene.traverse((o) => void (!hips && rig.baseName(o.name) === rig.bones.hips && (hips = o)))
+  const c = hips ? (hips as Object3D).getWorldPosition(new Vector3()) : new Box3().setFromObject(wrap, true).getCenter(new Vector3())
+  wrap.position.x -= c.x
+  wrap.position.z -= c.z
+  wrap.updateMatrixWorld(true)
+  return wrap
+}
+
+/** Loads one rig's GLB, normalizes scale/facing, adapts its materials and binds the animator. */
+function HostModel({ rig }: { rig: HostRig }) {
+  const gltf = useGLTF(assetUrl(rig.url), false, true)
   const camera = useThree((s) => s.camera)
   const preset = useQuality()
 
-  const model = useMemo(() => {
-    const scene = SkeletonUtils.clone(gltf.scene) as Object3D
-    const ramp = toonRamp()
-    const cache = new Map<Material, MeshToonMaterial>()
-    scene.traverse((o) => {
-      const mesh = o as Mesh
-      if (!mesh.isMesh) return
-      mesh.frustumCulled = false
-      // unlit exports may ship without normals; lit toon shading needs them
-      if (!mesh.geometry.attributes.normal) mesh.geometry.computeVertexNormals()
-      // degenerate vertices can carry zero normals → NaN in the toon/rim shading → black flicker
-      fixZeroNormals(mesh.geometry, 0, 1, 0)
-      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-      const conv = mats.map((mm) => {
-        if (!cache.has(mm)) cache.set(mm, toToon(mm, ramp))
-        return cache.get(mm)!
-      })
-      mesh.material = Array.isArray(mesh.material) ? conv : conv[0]
-    })
-    // normalize height (skinned bounds) and stand on the floor
-    scene.updateMatrixWorld(true)
-    // bone matrices are only computed at render time; skinned bounds need them now
-    scene.traverse((o) => (o as SkinnedMesh).isSkinnedMesh && (o as SkinnedMesh).skeleton.update())
-    const box = new Box3().setFromObject(scene, true)
-    const h = box.max.y - box.min.y
-    const s = h > 0.01 ? TARGET_HEIGHT / h : 1
-    const wrap = new Object3D()
-    wrap.name = 'HostModel'
-    wrap.add(scene)
-    wrap.scale.setScalar(s)
-    wrap.position.y = -box.min.y * s
-    wrap.updateMatrixWorld(true)
-    // facing check: toes should point +Z
-    let ankle: Object3D | null = null
-    let toe: Object3D | null = null
-    scene.traverse((o) => {
-      const b = baseName(o.name)
-      if (b === 'Left_ankle') ankle = o
-      if (b === 'Left_toe') toe = o
-    })
-    if (ankle && toe) {
-      const a = (ankle as Object3D).getWorldPosition(new Vector3())
-      const t = (toe as Object3D).getWorldPosition(new Vector3())
-      if (t.z < a.z) wrap.rotation.y = Math.PI
-      wrap.updateMatrixWorld(true)
-    }
-    return wrap
-  }, [gltf])
+  const model = useMemo(() => prepareHostModel(gltf.scene, rig), [gltf, rig])
 
   useEffect(() => {
-    host.bind(model)
+    host.bind(model, rig)
+    // the model's own clips (fox): Idle/Walk drive the body
+    if (rig.useClips && gltf.animations.length) host.setClips(gltf.animations, model)
     host.camera = camera
     if (import.meta.env.DEV) logRig(model)
     // optional retargeted clips
@@ -127,7 +173,7 @@ export function Host() {
     return () => {
       cancelled = true
     }
-  }, [model, camera])
+  }, [model, camera, rig])
 
   useEffect(() => {
     model.traverse((o) => {
@@ -144,18 +190,8 @@ export function Host() {
 
   useFrame((_, dt) => host.update(dt))
 
-  return (
-    <>
-      <primitive
-        object={host.root}
-        onPointerDown={(e: { stopPropagation: () => void }) => {
-          e.stopPropagation()
-          director.hostTap()
-        }}
-      />
-      <HostShadow />
-    </>
-  )
+  // the model is placed inside host.root by host.bind(); nothing to render here
+  return null
 }
 
 /** Soft radial gradient (black → transparent) for the contact shadow. */
@@ -212,4 +248,5 @@ function logRig(model: Object3D) {
   console.info(`[host] bones=${bones.length} tris=${Math.round(tris)} (procedural animator, see src/scene/Host/HostRig.md)`)
 }
 
-useGLTF.preload(HOST_URL, false, true)
+// both characters are small (≈0.5 MB each): preload them so switching in the editor is instant
+for (const r of RIGS) useGLTF.preload(assetUrl(r.url), false, true)

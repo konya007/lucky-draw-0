@@ -18,6 +18,8 @@ export const PATHS = {
   toBow: [MARKS.crank, v(1.2, 0.7), MARKS.bow],
   /** exit into the stage-left wing: around the right side, behind the cage */
   exit: [MARKS.bow, v(1.25, 0.6), v(1.15, -0.5), v(0.3, -0.92), v(-1.0, -0.95), v(-2.8, -0.9), MARKS.wing],
+  /** apron → off stage left in front of the curtain (then teleported to the wing) */
+  packExit: [MARKS.pack, v(-1.6, 2.1), v(-3.6, 2.05), v(-5.2, 2.0)],
   exitFromCrank: [MARKS.crank, v(1.1, -0.55), v(0.3, -0.92), v(-1.0, -0.95), v(-2.8, -0.9), MARKS.wing],
   exitFromTray: [MARKS.tray, v(1.18, 0.5), v(1.15, -0.5), v(0.3, -0.92), v(-1.0, -0.95), v(-2.8, -0.9), MARKS.wing],
 }

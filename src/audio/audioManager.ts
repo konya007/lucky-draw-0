@@ -71,7 +71,8 @@ class AudioManager {
       const map: Record<string, string> = {}
       for (const f of folderFiles) {
         const name = f.replace(/\.[^.]+$/, '')
-        if (known.has(name)) map[name] = f
+        // per-character voice lines: voiceStart_<rigId>, voiceCongrats_<rigId> …
+        if (known.has(name) || /^voice[A-Z]\w*_[\w-]+$/.test(name)) map[name] = f
       }
       // 2) manifest.json entries win (for files with other names)
       try {
@@ -181,6 +182,33 @@ class AudioManager {
 
   vibrate(ms = 15) {
     navigator.vibrate?.(ms)
+  }
+
+  /**
+   * A host voice line: the character's own file (`voiceStart_<rigId>.mp3`) if present, else the shared
+   * `voiceStart.mp3`, else the synthesized cue. Voices play at their natural pitch (no random detune).
+   */
+  playVoice(line: 'voiceStart' | 'voiceCongrats', rigId: string, o: PlayOpts = {}) {
+    const ctx = this.ctx
+    if (!ctx || ctx.state !== 'running') return
+    const file = this.files.get(`${line}_${rigId}`) ?? this.files.get(line)
+    if (!file) return this.play(line, o)
+    const out = ctx.createGain()
+    out.gain.value = o.vol ?? 1
+    if (o.pos) {
+      const p = ctx.createPanner()
+      p.panningModel = 'HRTF'
+      p.distanceModel = 'inverse'
+      p.refDistance = 2.5
+      p.positionX.value = o.pos.x
+      p.positionY.value = o.pos.y
+      p.positionZ.value = o.pos.z
+      out.connect(p).connect(this.sfx)
+    } else out.connect(this.sfx)
+    const src = ctx.createBufferSource()
+    src.buffer = file
+    src.connect(out)
+    src.start()
   }
 
   play(name: SfxName, o: PlayOpts = {}) {

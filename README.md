@@ -39,9 +39,9 @@ Vì site có thể nằm dưới một sub-path, mọi file trong `public/` ph�
 
 ## Cách chơi
 
-0. Mở web sẽ thấy màn tải, rồi màn chính với 2 nút **Bắt đầu quay** và **Cài đặt**. Hàng nút bên dưới có **Người đã trúng** (xem các vé đã trúng) và **Xóa kết quả** (bấm 2 lần để xác nhận). Bấm **Bắt đầu quay** để mở màn soạn danh sách.
+0. Mở web sẽ thấy màn tải, rồi màn chính với 2 nút **Bắt đầu quay** và **Cài đặt**. Bấm **Bắt đầu quay** để mở màn soạn danh sách.
 1. Dán danh sách, mỗi dòng một mục. Có thể dùng `Tên | Giải | Ghi chú`, Tab hoặc CSV. Bấm **Tiến hành quay số**.
-2. Cầu được đóng gói, rèm mở, cô dẫn chương trình bước ra, các quả cầu bay vào lồng.
+2. Các thẻ tên cuộn lại rơi vào thùng phiếu, rèm mở, người dẫn chương trình một tay bưng thùng phiếu, tay kia vẫy chào khán giả; tới nơi thì ôm thùng bằng 2 tay, mở nắp: các quả cầu bay lên khỏi thùng rồi bay vào lồng, trong lúc đó nhân vật mang thùng cất ra phía sau sân khấu rồi quay lại cần quay (Cáo Kính lùn nên nhảy lên khi quay).
 3. Chạm vào **cần quay** (thứ đang phát sáng): bấm một lần thì cô tự quay, còn kéo vòng tròn thì lực quay theo tay bạn.
 4. Quả cầu rơi ra khay, cô nhặt lên. Chạm vào quả cầu (hoặc giữ để "bẻ") để mở. Vé hiện ra.
 5. Chạm vào vé (hoặc vuốt lên) để cất vào hộp và quay lượt tiếp. Bảng kẹp giấy bên phải mở lại danh sách, radio bên trái mở cài đặt, hộp vé trên bàn mở lịch sử (xuất CSV hoặc sao chép).
@@ -50,9 +50,12 @@ Kết quả được chọn bằng `crypto.getRandomValues` đúng lúc quả c�
 
 ### Màn soạn danh sách
 
+- Góc dưới trái: **Người đã trúng (N)** để xem các vé đã trúng, **Xóa kết quả** (bấm 2 lần để xác nhận).
+
 - **Thao tác danh sách ▾**: gom mọi công cụ vào một menu: thêm dữ liệu mẫu (30 người có MSSV và giải), nhập file .txt/.csv, xáo trộn, sắp xếp A→Z, đảo ngược, xóa dòng trùng, xóa dòng trống, xóa hết (bấm 2 lần).
 - **Che mã số**: chế độ hiển thị, dữ liệu gốc không bị sửa. Mọi dãy từ 6 chữ số trở lên (MSSV, số điện thoại…) bị che ⌈n/3⌉ số ở giữa, ví dụ 10 số thì che 4 số: `2251052127` → `225xxxx127`. Áp dụng cho danh sách xem trước, thẻ bay vào quả cầu, vé trúng thưởng và sổ vé. File CSV xuất ra vẫn giữ số đầy đủ.
 - **Số người trúng**: để trống thì quay đến khi hết danh sách. Nhập số (ví dụ 5) thì khi đủ 5 người trúng trong buổi quay, sân khấu tự hạ màn sau khi cất vé cuối.
+- **Nhân vật** (dropdown): Cáo Kính (mặc định), Cô gái anime, MrBeast. Khung bên phải màn soạn danh sách hiện nhân vật đang chọn cầm thùng phiếu (3D). Danh sách bên trái có 2 tab: **Nhập** và **Xem trước**. Mỗi nhân vật có câu thoại riêng (xem `public/audio/README.md`).
 - **Loại người đã trúng**: bật thì người đã trúng không được quay lại, và lồng không bổ sung quả mới (lồng vơi dần).
 
 ### Hạ màn sớm

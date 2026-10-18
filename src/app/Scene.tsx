@@ -11,6 +11,7 @@ import { HeroBall } from '../scene/Balls/HeroBall'
 import { Host } from '../scene/Host/Host'
 import { Ticket } from '../scene/Props/Ticket'
 import { TicketBox } from '../scene/Props/TicketBox'
+import { BallotBox } from '../scene/Props/BallotBox'
 import { SettingsRadio } from '../scene/Props/SettingsRadio'
 import { ListClipboard } from '../scene/Props/ListClipboard'
 import { Effects } from '../scene/Effects'
@@ -141,6 +142,7 @@ export default function Scene({ paused }: { paused: boolean }) {
         <Host />
         <Ticket />
         <TicketBox />
+        <BallotBox />
         <SettingsRadio />
         <ListClipboard />
         <Confetti />

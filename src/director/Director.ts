@@ -14,6 +14,7 @@ import { ballSystem, type Ball } from '../scene/Balls/ballSystem'
 import { hero } from '../scene/Balls/HeroBall'
 import { ticket, TICKET_W, TICKET_H } from '../scene/Props/Ticket'
 import { confetti } from '../scene/VFX/Confetti'
+import { ballot, BALLOT_SIZE } from '../scene/Props/BallotBox'
 import { host } from '../scene/Host/useHostAnimator'
 import { PATHS } from '../scene/Host/hostPaths'
 import { knobWorld } from '../scene/Cage/Crank'
@@ -23,15 +24,18 @@ const g = () => useGameStore.getState()
 const _v = new Vector3()
 const _w = new Vector3()
 const _w2 = new Vector3()
-const _qFlip = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI)
+// held top half: open side tilted up and toward the audience (-120° about the character's X)
+const _v2 = new Vector3()
+const _qBody = new Quaternion()
+const _qTmp = new Quaternion()
+const _qIdentity = new Quaternion()
+/** box carried sideways on one palm */
+const _qSide = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2)
+const _qFlip = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -2.09)
 const smoothClamp = (x: number) => {
   const t = Math.min(1, Math.max(0, x))
   return t * t * (3 - 2 * t)
 }
-/** Hero ball display scale while held. */
-const HELD_SCALE = 2
-/** Ticket display scale while held (the chibi's mitten hands would hide a real-size ticket). */
-const TICKET_HELD = 1.6
 const BUSY: Phase[] = ['PACKING', 'HOST_ENTER', 'LOADING_CAGE', 'SPINNING', 'DECELERATING', 'DISPENSING', 'HOST_PICKUP', 'OPENING']
 const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -67,6 +71,10 @@ class Director {
   private ticketLocal = new Vector3()
   /** top half of the split ball rides the left palm */
   private topFollowL = false
+  /** the ballot box rides in the host's hands */
+  private carryingBox = false
+  /** how the box is held: 0 = on the left palm beside the hip, 1 = both hands in front of the belly */
+  private boxGrip = { two: 0 }
   private nudge: gsap.core.Tween | null = null
   private autoOpen: gsap.core.Tween | null = null
   private omegaPeak = 10
@@ -133,44 +141,69 @@ class Director {
     if (!this.phase('PACKING')) return
     lightDirector.cue('editing')
 
-    // floating balls in front of the curtain (where the cards will land)
+    // the balls wait (invisible) inside the ballot box the host will carry in
     const balls = ballSystem.balls.slice(0, count)
-    const cols = Math.ceil(Math.sqrt(count * 2.2))
-    balls.forEach((b, i) => {
-      const r = Math.floor(i / cols)
-      const c = i % cols
-      const rows = Math.ceil(count / cols)
-      b.pos.set((c / Math.max(1, cols - 1) - 0.5) * 2.1 + vrand(-0.03, 0.03), 1.3 + (rows > 1 ? (r / (rows - 1)) * 1.05 : 0.5) + vrand(-0.03, 0.03), 2.75 + vrand(-0.08, 0.08))
+    balls.forEach((b) => {
+      b.pos.set(0, -5, 0)
       b.scale = 0
       ballSystem.setMode(b, 'float')
     })
+    ballot.visible = false
+    ballot.lid = 0
+    ballot.glow = 0
+    ballot.scale = 1
+
+    // the host waits in front of the closed curtain holding the open ballot box
+    host.place(MARKS.pack, 0)
+    host.carryHand = 'L'
+    this.boxGrip.two = 1
+    this.carryingBox = true
+    ballot.visible = true
+    ballot.lid = 1
+    ballot.glow = 0.4
+    host.setPose('carryBox')
+    host.setState('idle')
+    host.lookAtCamera()
+    cameraDirector.setShot('packing')
+    // the follow spot picks the host out on the apron (the editing cue would fade it back to 0)
+    gsap.killTweensOf(lights, 'follow,foot')
+    lightDirector.followOn()
+    gsap.to(lights, { foot: 0.8, duration: 0.6 })
+    await wait(0.9)
 
     // hand the DOM overlay its card → ball screen targets
     const { entries } = parseEntries(s.text)
     const pool = new Set(g().pool.map((e) => e.id))
     const shown = entries.filter((e) => pool.has(e.id)).slice(0, 200)
+    // every card curls up and drops into the open box in the host's hands
+    const slot = this.project(_v2.copy(ballot.pos).setY(ballot.pos.y + BALLOT_SIZE.h))
     const cards = shown.map((e, i) => {
       const b = balls[i % count]
-      const p = this.project(b.pos)
-      return { text: displayed(e.cols[0] || e.raw), ball: b.i, x: p.x, y: p.y, color: `#${b.color.clone().convertLinearToSRGB().getHexString()}` }
+      return { text: displayed(e.cols[0] || e.raw), ball: b.i, x: slot.x + vrand(-30, 30), y: slot.y, color: `#${b.color.clone().convertLinearToSRGB().getHexString()}` }
     })
     const done = new Promise<void>((r) => (this.packResolve = r))
     g().set({ packing: { cards } })
     await Promise.race([done, wait(6)])
-    // any ball that didn't get a card still pops in
-    balls.forEach((b) => b.scale < 1 && gsap.to(b, { scale: 1, duration: 0.3, ease: 'back.out(2)' }))
     g().set({ packing: null })
-    await this.curtainUp(balls)
+    // lid shut, a happy nod, then off into the wing (box on the audience-side hand) as the curtain rises
+    await tween(ballot, { lid: 0, glow: 0, duration: 0.3, ease: 'power2.in' })
+    audio.play('lid', { vol: 0.35, pitch: 1.3, pos: ballot.pos })
+    host.express('happy', 1)
+    host.setPose('carrySide')
+    await tween(this.boxGrip, { two: 0, duration: 0.35, ease: 'power2.inOut' })
+    host.lookAt(null)
+    host.setState('walking')
+    const exit = host.walk(PATHS.packExit, 2.4).then(() => host.place(MARKS.wing, Math.PI / 2))
+    await wait(0.6)
+    await this.curtainUp()
+    await exit
     await this.hostEnter()
   }
 
   /** Overlay callback: a card reached its ball → the shell closes with a click and a glint. */
   packArrive(i: number) {
-    const b = ballSystem.balls[i]
-    if (!b) return
-    if (b.scale < 0.99) gsap.fromTo(b, { scale: 0 }, { scale: 1, duration: 0.35, ease: 'back.out(2.2)' })
-    b.flash = 1
-    audio.play('ballClose', { vol: 0.35, pitch: 0.9 + Math.random() * 0.3 })
+    if (!ballSystem.balls[i]) return
+    audio.play('paper', { vol: 0.25, pitch: 0.9 + Math.random() * 0.3 })
   }
   packDone() {
     this.packResolve?.()
@@ -183,25 +216,13 @@ class Director {
     return { x: ((_v.x + 1) / 2) * innerWidth, y: ((1 - _v.y) / 2) * innerHeight }
   }
 
-  private async curtainUp(balls: Ball[]) {
+  private async curtainUp() {
     audio.play('curtain', { vol: 0.9 })
     audio.play('crowd', { vol: 0.6 })
     gsap.to(stage, { curtainWave: 0.9, duration: 0.8, ease: 'power2.out' })
     gsap.to(stage, { curtainWave: 0.12, duration: 2.5, delay: 1.2, ease: 'sine.inOut' })
     const open = tween(stage, { curtainOpen: 1, duration: 2.6, ease: 'power2.inOut' })
     gsap.delayedCall(0.5, () => lightDirector.curtainUp())
-    // packed balls drift up and back into a loose cloud above the stage
-    balls.forEach((b, i) => {
-      const c = FLOAT_CLOUD
-      gsap.to(b.pos, {
-        x: c.center.x + vrand(-1, 1) * c.spread.x * 0.5,
-        y: c.center.y + vrand(-1, 1) * c.spread.y * 0.5,
-        z: c.center.z + vrand(-1, 1) * c.spread.z * 0.5,
-        duration: 2.0,
-        delay: 0.4 + (i % 20) * 0.02,
-        ease: 'power2.inOut',
-      })
-    })
     cameraDirector.setShot('wide')
     await cameraDirector.path(
       [new Vector3(0, 1.85, 4.6), new Vector3(0, 1.95, 5.4), new Vector3(0, 2.25, 6.7)],
@@ -217,25 +238,86 @@ class Director {
     lightDirector.cue('hostEnter')
     lightDirector.followOn()
     cameraDirector.setShot('hostEnter')
+    // walks on carrying the ballot box
+    ballot.visible = true
+    ballot.lid = 0
+    this.carryingBox = true
+    this.boxGrip.two = 0
+    // box on the audience-side palm (walking stage left → right), the upstage hand waves hello
+    host.carryHand = 'R'
+    host.setPose('carryWave')
     host.setState('walking')
-    host.lookAt(null)
-    await host.walk(PATHS.enter, 1.7)
+    host.lookAtCamera()
+    await host.walk(PATHS.enter, 1.6)
     host.setState('idle')
     await host.faceYaw(-0.3)
     cameraDirector.setShot('hostBow')
     host.lookAtCamera()
-    host.express('happy', 3.5)
-    await host.bowOnce(0.6)
-    audio.play('voiceStart', { vol: 0.7, pos: host.pos })
-    await host.waveFor(0.9)
-    // she gestures to the lid: the balls answer
-    host.setPose('rest')
+    host.express('happy', 2.5)
+    audio.playVoice('voiceStart', host.rig.id, { vol: 0.85, pos: host.pos })
+    await wait(0.5)
+    // brings the box round to the front with both hands to open it
+    host.setPose('carryBox')
+    await tween(this.boxGrip, { two: 1, duration: 0.55, ease: 'power2.inOut' })
+    await wait(0.15)
+
+    // opens the box: the balls rise out of it into a cloud above the stage
+    if (!this.phase('LOADING_CAGE')) return
+    lightDirector.cue('loading')
+    // wide: the host, the open box and the balls rising above the stage all in frame
+    cameraDirector.setShot('wide')
+    host.lookAt(() => _w2.copy(ballot.pos).setY(ballot.pos.y + 0.6))
+    await tween(ballot, { lid: -0.04, duration: 0.12 })
+    audio.play('lidOpen', { vol: 0.8, pos: ballot.pos })
+    gsap.to(ballot, { glow: 1, duration: 0.4 })
+    await tween(ballot, { lid: 1, duration: 0.45, ease: 'back.out(1.6)' })
+    const balls = ballSystem.balls.filter((b) => b.mode === 'float')
+    const spread = Math.min(1.3, balls.length * 0.03)
+    const mouth = new Vector3()
+    balls.forEach((b, i) => {
+      const at = (i / Math.max(1, balls.length)) * spread
+      const c = FLOAT_CLOUD
+      const dest = new Vector3(c.center.x + vrand(-1, 1) * c.spread.x * 0.5, c.center.y + vrand(-1, 1) * c.spread.y * 0.5, c.center.z + vrand(-1, 1) * c.spread.z * 0.5)
+      gsap.delayedCall(at, () => {
+        mouth.copy(ballot.pos).add(_w.set(0, BALLOT_SIZE.h, 0))
+        b.pos.copy(mouth).add(_w.set(vrand(-0.08, 0.08), 0, vrand(-0.06, 0.06)))
+        b.flash = 1
+        gsap.to(b, { scale: 1, duration: 0.25, ease: 'back.out(2)' })
+        if (i % 5 === 0) audio.play('whoosh', { vol: 0.3, pos: b.pos })
+        gsap.to(b.pos, { x: dest.x, y: dest.y, z: dest.z, duration: vrand(0.7, 1.0), ease: 'power2.out' })
+      })
+    })
+    await wait(spread + 0.9)
+    gsap.to(ballot, { glow: 0, lid: 0, duration: 0.5, ease: 'power2.in' })
+    // back to one hand (the left: the cage is on her/his right), the free hand sends the balls in
+    host.carryHand = 'L'
+    host.setPose('carrySide')
+    await tween(this.boxGrip, { two: 0, duration: 0.45, ease: 'power2.inOut' })
     const lidTop = CAGE.center.clone().setY(CAGE.center.y + CAGE.radius + 0.1)
-    void host.gesture(lidTop, 1.6)
-    await wait(0.3)
+    void host.gesture(lidTop, 1.4)
     host.lookAt(() => this.flyingCenter(_w))
-    await this.loadCage(ballSystem.balls.filter((b) => b.mode === 'float'), true)
+    // while the balls fly in, the box is put away far upstage so it's never under anyone's feet
+    await Promise.all([this.loadCage(balls, true, true), wait(1.4).then(() => this.stowBox())])
     await this.toIdle()
+  }
+
+  /** Turns upstage, sets the empty box down out of sight (it vanishes) and turns back to the crank. */
+  private async stowBox() {
+    if (!this.carryingBox) return
+    const yaw = host.yaw
+    host.lookAt(null)
+    await host.faceYaw(yaw + Math.PI)
+    host.crouchT = host.rig.pickup.crouch + 0.05
+    host.leanT = host.rig.pickup.lean * 0.5
+    audio.play('lid', { vol: 0.25, pitch: 1.4, pos: ballot.pos })
+    await tween(ballot, { scale: 0, duration: 0.35, ease: 'power2.in' })
+    this.carryingBox = false
+    ballot.visible = false
+    ballot.scale = 1
+    host.setPose('rest')
+    host.crouchT = 0
+    host.leanT = 0
+    await host.faceYaw(yaw)
   }
 
   private flyingCenter(out: Vector3) {
@@ -246,8 +328,8 @@ class Director {
   }
 
   // ============================================================= LOADING_CAGE
-  private async loadCage(balls: Ball[], establishing: boolean) {
-    if (!this.phase('LOADING_CAGE')) return
+  private async loadCage(balls: Ball[], establishing: boolean, alreadyLoading = false) {
+    if (!alreadyLoading && !this.phase('LOADING_CAGE')) return
     if (establishing) {
       lightDirector.cue('loading')
       cameraDirector.setShot('loading')
@@ -342,9 +424,16 @@ class Director {
     host.idleEnabled = false
     host.setState('cranking')
     host.setPose('rest')
-    host.reach('R', () => knobWorld(_v))
+    host.quick = true // grab the knob firmly before it starts moving
+    host.hopping = true // short hosts bounce up to the knob (rig.crankHop)
+    host.reach('R', () => knobWorld(_v), 'down')
     host.lookAt(() => knobWorld(_w))
     void host.faceYaw(-Math.PI / 2 + 0.35)
+    if (host.rig.reachStep) {
+      // short arms step right up to the knob while turning to it
+      const to = knobWorld(_w2).sub(host.pos).setY(0)
+      void host.stepTo(to.setLength(host.rig.reachStep * 1.4).add(host.pos))
+    }
     stage.invited = 'none'
     stage.cageRock = 0
     cameraDirector.setShot('crankInsert', { kick: true })
@@ -363,15 +452,15 @@ class Director {
   async autoCrank() {
     if (g().phase !== 'IDLE_READY') return
     if (camState.shot !== 'crankInsert' && !this.crankPress()) return
-    // anticipation: lean back a touch before the pull
+    // anticipation: lean back a touch before the pull (short arms: after stepping up to the knob)
     host.leanT = -0.08
-    await wait(0.25)
+    await wait(host.rig.reachStep ? 0.7 : 0.25)
     host.leanT = 0.12
     const start = cage.crank
-    // one strong pull (~1 turn) then she lets the drum run on its own momentum
-    const turns = 0.8 + Math.random() * 0.4
-    const done = this.beginSpin(vrand(9.5, 12), false)
-    await until(() => cage.crank - start >= turns * Math.PI * 2, 1.6)
+    // several hard turns of the crank, then the drum runs on its own momentum
+    const turns = 2.5 + Math.random()
+    const done = this.beginSpin(vrand(10.5, 13), false)
+    await until(() => cage.crank - start >= turns * Math.PI * 2, 3.5)
     this.releaseCrank()
     await done
   }
@@ -382,11 +471,13 @@ class Director {
   }
 
   private releaseCrank() {
+    host.quick = false
+    host.hopping = false
     host.reach('R', null)
     host.leanT = 0
     gsap.delayedCall(0.3, async () => {
       // half a step back, hands clasped, eyes on the drum
-      await host.step(new Vector3(0, 0, -0.22))
+      await host.step(new Vector3(0, 0, -0.22 - host.rig.reachStep * 1.4))
       await host.faceYaw(-0.55)
       host.setPose('clasp')
       host.lookAt(() => CAGE.center)
@@ -476,14 +567,16 @@ class Director {
     host.setPose('rest')
     host.setState('walkingToTray')
     host.lookAt(() => b.pos)
-    await host.walk(PATHS.toTray, 1.6)
+    // big heads stand further off the table's end (the ball hops into the paw instead)
+    const off = host.rig.trayStandoff
+    await host.walk(off ? [...PATHS.toTray.slice(0, -1), MARKS.tray.clone().add(_w.set(off, 0, off * 0.3))] : PATHS.toTray, 1.6)
     await host.facePoint(b.pos)
     host.setState('pickingUp')
     audio.play('rustle', { vol: 0.4, pos: host.pos })
-    host.crouchT = 0.1
-    host.leanT = 0.55
+    host.crouchT = host.rig.pickup.crouch
+    host.leanT = host.rig.pickup.lean
     host.quick = true // brisk lean-in for the grab
-    host.reach('R', () => _v.copy(b.pos).add(_w.set(0, 0.035, 0)))
+    host.reach('R', () => _v.copy(b.pos).add(_w.set(0, 0.035, 0)), 'down')
     await host.waitUntil(() => host.palm.R.distanceTo(b.pos) < 0.1, 0.9)
     // grab: the ball leaves the instanced pool and becomes the hero mesh attached to the hand
     hero.pos.copy(b.pos)
@@ -507,8 +600,9 @@ class Director {
     host.setState('holding')
     host.lookAt(() => hero.pos)
     // display size in the hand (the real ball is tiny next to a chibi fist)
-    gsap.to(hero, { scale: HELD_SCALE, duration: 0.6, ease: 'back.out(1.6)' })
+    gsap.to(hero, { scale: host.rig.hold.ballScale, duration: 0.6, ease: 'back.out(1.6)' })
     await wait(0.2)
+    // short arms stepped up to the tray: back to the mark first, then turn to the audience
     const cam = this.camera ? this.camera.getWorldPosition(new Vector3()) : new Vector3(0, 1, 4)
     await host.faceYaw(Math.atan2(cam.x - host.pos.x, cam.z - host.pos.z) - 0.15)
     await this.ballPresented()
@@ -553,7 +647,8 @@ class Director {
     host.setState('opening')
     host.setPose('openBall')
     // left hand comes to the top of the ball (right hand holds the bottom)
-    host.reach('L', () => _v.copy(hero.pos).add(_w.set(0.02, BALL_RADIUS * hero.scale + 0.035, 0)))
+    // left hand closes over the ball from above, the right one cradles it from below
+    host.reach('L', () => _v.copy(hero.pos).add(_w.set(0.02, BALL_RADIUS * hero.scale + 0.035, 0)), 'down')
     shotParams.push = 0
     shotTargets.openAt.copy(hero.pos)
     cameraDirector.setShot('opening')
@@ -561,7 +656,7 @@ class Director {
     hero.spin = 0
     hero.split = 0
     // anticipation: the shell squeezes before it splits
-    await tween(hero, { scale: HELD_SCALE * 0.95, crack: 0.6, duration: 0.55, ease: 'power2.in' })
+    await tween(hero, { scale: host.rig.hold.ballScale * 0.95, crack: 0.6, duration: 0.55, ease: 'power2.in' })
     audio.setLoop('drumroll', 0, 0.05)
     audio.play('shellOpen', { vol: 1, pos: hero.pos })
     audio.play('cymbal', { vol: 0.9 })
@@ -569,7 +664,7 @@ class Director {
     cameraDirector.addTrauma(0.35)
     lightDirector.burst(hero.color)
     host.express('surprised', 0.9)
-    gsap.to(hero, { scale: HELD_SCALE, duration: 0.3, ease: 'back.out(3)' })
+    gsap.to(hero, { scale: host.rig.hold.ballScale, duration: 0.3, ease: 'back.out(3)' })
     // the ball splits in her hands: the top half leaves with the left hand, light pours out
     gsap.to(hero, { open: 1, duration: 0.8, ease: 'power2.out' })
     this.topFollowL = true
@@ -587,7 +682,7 @@ class Director {
     this.ticketLocal.copy(this.toHostLocal(hero.pos)).add(_w.set(0, 0.04, 0.02))
     this.ticketHold = true
     audio.play('paper', { vol: 0.7 })
-    gsap.to(ticket, { scale: TICKET_HELD, duration: 0.6, ease: 'back.out(1.8)' })
+    gsap.to(ticket, { scale: host.rig.ticketScale, duration: 0.6, ease: 'back.out(1.8)' })
     await tween(this.ticketLocal, { y: this.ticketLocal.y + 0.16, duration: 0.6, ease: 'power2.out' })
 
     // the two halves float down onto the tray by themselves; she takes the ticket by both sides
@@ -598,8 +693,8 @@ class Director {
     gsap.to(hero.pos, { x: hero.trayPos.x, y: hero.trayPos.y, z: hero.trayPos.z, duration: 0.9, ease: 'power2.inOut' })
     gsap.to(hero.topPos, { x: hero.trayPos.x + 0.1, y: hero.trayPos.y + 0.005, z: hero.trayPos.z + 0.02, duration: 1.0, ease: 'power2.inOut', onComplete: () => audio.play('hitBall', { vol: 0.4, pos: hero.pos }) })
     host.setPose('rest')
-    host.reach('L', () => this.ticketEdge(1, _v))
-    host.reach('R', () => this.ticketEdge(-1, _w2))
+    host.reach('L', () => this.ticketEdge(1, _v), 'in')
+    host.reach('R', () => this.ticketEdge(-1, _w2), 'in')
     host.lookAt(() => ticket.pos)
     cameraDirector.setShot('presented')
     await tween(this.ticketLocal, { x: 0, y: y0 - 0.12, z: 0.38, duration: 0.8, ease: 'power2.inOut' })
@@ -669,7 +764,7 @@ class Director {
     if (!this.phase('TICKET_SHOWN')) return
     host.setState('presenting')
     stage.invited = 'ticket'
-    audio.play('voiceCongrats', { vol: 0.8, pos: host.pos })
+    audio.playVoice('voiceCongrats', host.rig.id, { vol: 0.9, pos: host.pos })
     audio.play('applause', { vol: 0.9 })
     // audio.play('chime', { vol: 0.5 })
   }
@@ -711,7 +806,10 @@ class Director {
     await host.facePoint(TICKET_BOX)
     host.leanT = 0.35
     const boxTop = TICKET_BOX.clone().add(new Vector3(0, 0.1, 0))
-    host.reach('R', () => boxTop)
+    // eyes down on the box while the ticket goes in
+    host.lookAt(() => TICKET_BOX)
+    host.bowT = 0.25
+    host.reach('R', () => boxTop, 'down')
     await host.waitUntil(() => host.palm.R.distanceTo(boxTop) < 0.12, 1.4)
     this.ticketFollowHands = false
     await tween(ticket, { scale: 0.15, duration: 0.35, ease: 'power2.in' })
@@ -720,6 +818,8 @@ class Director {
     audio.play('paper', { vol: 0.5, pitch: 0.8 })
     host.reach('R', null)
     host.leanT = 0
+    host.bowT = 0
+    host.lookAt(null)
     // tidy: the shell halves fade away
     await tween(hero, { scale: 0, duration: 0.4, ease: 'power2.in' })
     hero.visible = false
@@ -789,7 +889,7 @@ class Director {
     host.setState('walking')
     host.lookAt(null)
     cameraDirector.setShot('wide')
-    await host.walk(host.pos.distanceTo(MARKS.tray) < 0.3 ? [MARKS.tray, new Vector3(1.25, 0, 1.0), MARKS.bow] : PATHS.toBow, 1.0)
+    await host.walk(host.pos.distanceTo(MARKS.tray) < 0.3 + host.rig.trayStandoff ? [MARKS.tray, new Vector3(1.25, 0, 1.0), MARKS.bow] : PATHS.toBow, 1.0)
     await host.faceYaw(0)
     host.lookAtCamera()
     host.express('happy', 4)
@@ -824,6 +924,8 @@ class Director {
     gsap.to(stage, { finale: 0, duration: 0.6 })
     ticket.visible = false
     gsap.to(hero, { scale: 0, duration: 0.3, onComplete: () => void (hero.visible = false) })
+    this.carryingBox = false
+    gsap.to(ballot, { scale: 0, duration: 0.4, onComplete: () => void (ballot.visible = false) })
     if (this.drawn) ballSystem.setMode(this.drawn, 'hidden')
     this.drawn = null
     host.idleEnabled = false
@@ -836,7 +938,7 @@ class Director {
     cameraDirector.setShot('editing')
     if (host.pos.x > -4) {
       host.setState('walkingOut')
-      void host.walk(host.pos.distanceTo(MARKS.tray) < 0.3 ? PATHS.exitFromTray : PATHS.exitFromCrank, 1.6).then(() => host.setState('offstage'))
+      void host.walk(host.pos.distanceTo(MARKS.tray) < 0.3 + host.rig.trayStandoff ? PATHS.exitFromTray : PATHS.exitFromCrank, 1.6).then(() => host.setState('offstage'))
     }
     await wait(2.3)
     if (g().phase === 'EDITING') ballSystem.reset()
@@ -925,12 +1027,24 @@ class Director {
     // hero ball rides the palm
     if (this.heroAttached === 'R' && hero.visible) {
       // rest the ball on top of the (mitten-like) sleeve cuff
-      _v.copy(host.palm.R).add(_w.set(0, BALL_RADIUS * hero.scale + 0.05, 0))
+      _v.copy(host.palm.R).addScaledVector(host.palmNormal.R, BALL_RADIUS * hero.scale + host.rig.hold.lift)
       hero.pos.lerp(_v, 1 - Math.exp(-25 * dt))
     }
+    if (this.carryingBox && ballot.visible) {
+      host.root.getWorldQuaternion(_qBody)
+      // two hands: gripped by the middle of its sides, bottom a little below the palms
+      _v.copy(host.palm.L).add(host.palm.R).multiplyScalar(0.5)
+      _v.add(_w.set(0, -BALLOT_SIZE.h * 0.55, 0))
+      // one hand: sitting on that palm, turned sideways (narrow side against the hip), nudged outward
+      const c = host.carryHand
+      _v2.copy(host.palm[c]).add(_w.set(c === 'L' ? 0.03 : -0.03, -0.01, 0).applyQuaternion(_qBody))
+      _v.lerpVectors(_v2, _v, this.boxGrip.two)
+      ballot.quat.copy(_qBody).multiply(_qTmp.copy(_qSide).slerp(_qIdentity, this.boxGrip.two))
+      ballot.pos.lerp(_v, 1 - Math.exp(-30 * dt))
+    }
     if (this.topFollowL && hero.visible) {
-      hero.topPos.lerp(_v.copy(host.palm.L).add(_w.set(0, 0.03, 0)), 1 - Math.exp(-25 * dt))
-      // dome down, open side up, like a cupped half-shell
+      hero.topPos.lerp(_v.copy(host.palm.L).addScaledVector(host.palmNormal.L, BALL_RADIUS * hero.scale + host.rig.hold.lift), 1 - Math.exp(-25 * dt))
+      // cupped half-shell, open side shown to the audience
       host.root.getWorldQuaternion(hero.topQuat).multiply(_qFlip)
     }
     if (this.ticketHold && ticket.visible) {

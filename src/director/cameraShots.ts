@@ -47,6 +47,8 @@ const _c = new Vector3()
 
 const SHOT_TABLE = {
   editing: (t) => ({ pos: v(Math.sin(t * 0.05) * 0.25, 1.85, 4.6), target: v(Math.sin(t * 0.05) * 0.18, 1.85, 1.9), fov: 35, handheld: 0.6, bokeh: 0, smooth: 1.2 }),
+  /** the host on the apron with the open ballot box, the closed curtain behind */
+  packing: () => ({ pos: v(0, 1.2, 5.6), target: v(0, 0.78, 2.1), fov: 36, handheld: 0.6, smooth: 0.9, focus: v(0, 0.9, 2.1), bokeh: 0.5 }),
   wide: () => ({ pos: v(0, 2.25, 6.7), target: v(0, 1.25, 0), fov: 40, handheld: 1, smooth: 0.9, bokeh: 0.5 }),
   hostEnter: () => {
     const head = host.headWorld(_a)
@@ -71,7 +73,10 @@ const SHOT_TABLE = {
   idle: () => ({ pos: v(-0.45, 1.25, 4.3), target: v(0.42, 1.05, 0), fov: 40, handheld: 1, parallax: true, smooth: 0.9, focus: CAGE.center.clone(), bokeh: 1 }),
   crankInsert: () => {
     const knob = knobWorld(_a)
-    return { pos: v(1.6, 1.62, 1.5), target: v(knob.x * 0.4 + CRANK.hub.x * 0.6, CRANK.hub.y, 0.05), fov: 30, smooth: 0.14, handheld: 0.6, focus: knob.clone(), bokeh: 2.5 }
+    // big chibi heads fill the usual over-the-shoulder angle: look at the knob from the front-left instead
+    const chibi = host.rig.headClear > 0
+    const pos = chibi ? v(0.15, 1.5, 2.7) : v(1.6, 1.62, 1.5)
+    return { pos, target: v(knob.x * 0.4 + CRANK.hub.x * 0.6, CRANK.hub.y, 0.05), fov: chibi ? 36 : 30, smooth: 0.14, handheld: 0.6, focus: knob.clone(), bokeh: 2.5 }
   },
   crankMedium: () => ({ pos: v(1.6, 1.45, 3.0), target: v(0.45, 1.05, 0), fov: 36, smooth: 0.6, handheld: 1, focus: v(0.6, 1.05, 0), bokeh: 1.5 }),
   spin: (_t, p) => {
@@ -108,7 +113,9 @@ const SHOT_TABLE = {
   },
   pickup: () => {
     const hips = host.hipsWorld(_a)
-    return { pos: v(hips.x + 0.7, 1.25, hips.z + 2.35), target: v((hips.x + TRAY.center.x) / 2, 0.85, (hips.z + TRAY.center.z) / 2), fov: 34, smooth: 0.7, handheld: 1, focus: TRAY.center.clone(), bokeh: 2, letterbox: 1 }
+    // big chibi heads block the over-the-shoulder view: look from the front-left, a little higher
+    const pos = host.rig.headClear > 0 ? v(0.15, 1.45, TRAY.center.z + 1.9) : v(hips.x + 0.7, 1.25, hips.z + 2.35)
+    return { pos, target: v((hips.x + TRAY.center.x) / 2, 0.85, (hips.z + TRAY.center.z) / 2), fov: 34, smooth: 0.7, handheld: 1, focus: TRAY.center.clone(), bokeh: 2, letterbox: 1 }
   },
   presented: (t, p) => {
     const head = host.headWorld(_a)
@@ -171,10 +178,25 @@ export const shotTargets = {
   openAt: TRAY.center.clone(),
 }
 
-/** Where the ticket is presented in front of the camera (world). */
-export const ticketCam = {
+const TICKET_CAM = {
   pos: v(0.3, 1.28, 2.75),
   target: v(0.3, 1.26, 1.7),
   ticketPos: v(0.3, 1.26, 1.86),
+}
+/** the whole ticket close-up (camera + ticket) slides by the rig's shift, e.g. away from a big chibi head */
+const shifted = (p: Vector3) => p.clone().add(_tShift.set(host.rig.ticketShot.x, host.rig.ticketShot.y, 0))
+const _tShift = new Vector3()
+
+/** Where the ticket is presented in front of the camera (world). */
+export const ticketCam = {
+  get pos() {
+    return shifted(TICKET_CAM.pos)
+  },
+  get target() {
+    return shifted(TICKET_CAM.target)
+  },
+  get ticketPos() {
+    return shifted(TICKET_CAM.ticketPos)
+  },
 }
 

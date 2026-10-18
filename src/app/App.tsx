@@ -13,8 +13,8 @@ import { director } from '../director/Director'
 
 // Dev-only handle for automated walkthroughs (screenshots / smoke tests).
 if (import.meta.env.DEV) {
-  void Promise.all([import('../store/useGameStore'), import('../director/channels'), import('../scene/Host/useHostAnimator'), import('../scene/Balls/ballSystem'), import('../scene/Balls/HeroBall'), import('../scene/Props/Ticket'), import('../director/CameraDirector'), import('../store/useSettingsStore')]).then(
-    ([gs, ch, h, bs, hb, tk, cd, ss]) => ((window as unknown as Record<string, unknown>).__gd = { director, store: gs.useGameStore, settings: ss.useSettingsStore, channels: ch, host: h.host, balls: bs.ballSystem, hero: hb.hero, ticket: tk.ticket, cam: cd }),
+  void Promise.all([import('../store/useGameStore'), import('../director/channels'), import('../scene/Host/useHostAnimator'), import('../scene/Balls/ballSystem'), import('../scene/Balls/HeroBall'), import('../scene/Props/Ticket'), import('../director/CameraDirector'), import('../store/useSettingsStore'), import('../scene/Props/BallotBox'), import('../scene/Cage/Crank')]).then(
+    ([gs, ch, h, bs, hb, tk, cd, ss, bb, cr]) => ((window as unknown as Record<string, unknown>).__gd = { director, store: gs.useGameStore, settings: ss.useSettingsStore, channels: ch, host: h.host, balls: bs.ballSystem, hero: hb.hero, ticket: tk.ticket, cam: cd, ballot: bb.ballot, knobWorld: cr.knobWorld }),
   )
 }
 

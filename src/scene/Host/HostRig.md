@@ -41,3 +41,34 @@ Other notable chains: full finger chains (3 joints each), `zArmTwist_*` / `zHand
 ## Adding real clips
 
 See README → "Host animations". Put retargeted clips in `public/host-animations.glb` and set `"animations": "/host-animations.glb"` in `public/host-manifest.json`. The `Idle` and `Walking` clips then drive the body, and IK/look-at stay layered on top for the arms and head.
+
+---
+
+# Multiple characters (rigs)
+
+Each host character is a subclass of `HostRig` (`rigs/HostRig.ts`). The animator (`useHostAnimator.ts`) only talks to the skeleton through the rig, so the same procedural animation, IK, gaze and springs drive every model.
+
+| File | Character | Skeleton |
+|---|---|---|
+| `rigs/AnimeGirlRig.ts` | Cô gái anime (`/host.glb`) | VRoid/Unity humanoid, 185 joints, unlit → toon |
+| `rigs/MrBeastRig.ts` | MrBeast (`/host-mrbeast.glb`) | Unreal mannequin, 3 skins (141 + 76 + 179 joints), PBR |
+| `rigs/FoxRig.ts` (default) | Cáo Kính (`/host-fox.glb`) | Blender-style v2 (source `fox_rigged_v2.glb`), 36 joints incl. index/pinky knuckles + thumb + toes, PBR, **own clips** Idle/Walk/Wave/Jump/TailWag (`useClips`); hops while cranking (`crankHop`), shows things lower/out to the side (`headClear`) |
+
+What a rig defines: `bones` (logical bone → base name), `height`, `materials` ('toon' | 'lit'), `hop`, `armRest`, and the hooks `springGain()`, `wingSide()`, `isSkirtRoot()`, `handSide()`, `baseName()`.
+
+**Adding a character:** compress the GLB (`gltf-transform optimize in.glb public/host-xxx.glb --compress meshopt --texture-compress webp --texture-size 2048`), write `rigs/XxxRig.ts` extending `HostRig`, add it to `RIGS` in `rigs/index.ts`. It then appears in the editor's "Nhân vật" picker. Voice lines: `public/audio/voiceStart_<id>.mp3`, `voiceCongrats_<id>.mp3`.
+
+## MrBeast (Unreal/Fortnite) notes
+
+- Bone names: `upperarm_l_017` → base `upperarm_l`. Logical mapping: hips `pelvis`, spine `spine_02`, chest `spine_04`, neck `neck_01`, head `head`, arms `upperarm/lowerarm/hand_*`, legs `thigh/calf/foot/ball_*`, palm `middle_01_*`.
+- **Duplicate skeletons:** body, head and accessories each have their own copy of the skeleton. The copy containing `pelvis` is primary; every same-named bone in the other copies mirrors it each frame (`mirrors` in the animator).
+- Springs: `dyn_hood*`, `cape`, `dyn_megaphone`, `dyn_shoe_back_*`. Twist/deform bones are children of the arm/leg bones and follow automatically.
+- Height on stage 1.75 m, hop 0.055 m, arms hang by the sides.
+- Real hands (not mittens): grip at the palm (`handReach 0.5`), ball shown at 1.25× resting in an upturned palm (`palmBones`: the palm direction is measured from the knuckles each frame and holding wrists roll palm-up; held objects sit on the palm side), ticket at 1.05×, wider clap gap, deeper lean/crouch to reach the tray.
+
+## Fox notes
+
+- three.js strips dots from node names: `hand.L` → `handL`, `tail.01` → `tail01`.
+- `useClips = true`: the GLB's Idle/Walk clips drive body and legs (crossfade 0.35 s when walking starts/stops); arms (IK), gaze, lean/bow/crouch are layered on top.
+- No finger or toe bones: the hand bone is also the palm point, the foot bone also the toe.
+- All rigs share the box poses: `carryBox` (both hands in front of the belly, palms in; `carryHalfWidth` per rig, used to open the box) and `carrySide` / `carryWave` (box on one palm beside the hip, `host.carryHand`; `carryWave` waves with the other hand on the way in). While the cards are packed the host waits on the apron holding the open box (`MARKS.pack`), then walks off (`PATHS.packExit`); after loading the cage the host turns upstage, pretends to set the box down and it vanishes.

@@ -5,23 +5,17 @@ import { clock } from '../../director/channels'
 import { audio } from '../../audio/audioManager'
 import { useGameStore, type HostState } from '../../store/useGameStore'
 import { CAGE, CRANK, PROPS, TRAY } from '../layout'
+import type { BoneKey, HostRig, Side } from './rigs/HostRig'
+import { RIGS } from './rigs'
 
-/** Base bone names (three sanitises spaces to "_" and the export appends "_<index>"). See HostRig.md. */
-export const HOST_BONES = {
-  hips: 'Hips', spine: 'Spine', chest: 'Chest', neck: 'Neck', head: 'Head',
-  lArm: 'Left_arm', lElbow: 'Left_elbow', lWrist: 'Left_wrist',
-  rArm: 'Right_arm', rElbow: 'Right_elbow', rWrist: 'Right_wrist',
-  lLeg: 'Left_leg', lKnee: 'Left_knee', lAnkle: 'Left_ankle', lToe: 'Left_toe',
-  rLeg: 'Right_leg', rKnee: 'Right_knee', rAnkle: 'Right_ankle', rToe: 'Right_toe',
-  lMid: 'MiddleFinger1_L', rMid: 'MiddleFinger1_R',
-} as const
-type BoneKey = keyof typeof HOST_BONES
+/** The skeleton mapping lives in the active rig class (rigs/). */
+export type { BoneKey }
 
-export const baseName = (n: string) => n.replace(/\s/g, '_').replace(/_\d+$/, '')
-
-export type ArmPose = 'rest' | 'clasp' | 'wave' | 'clap' | 'present' | 'presentTwo' | 'hairTouch' | 'openBall'
+export type ArmPose = 'rest' | 'clasp' | 'wave' | 'clap' | 'present' | 'presentTwo' | 'hairTouch' | 'openBall' | 'carryBox' | 'carrySide' | 'carryWave'
 type Getter = () => Vector3
-type Side = 'L' | 'R'
+/** which way a real hand's palm faces */
+export type PalmDir = 'up' | 'down' | 'in' | 'forward'
+const _pg = new Vector3()
 
 const damp = (a: number, b: number, lambda: number, dt: number) => a + (b - a) * (1 - Math.exp(-lambda * dt))
 const dampAngle = (a: number, b: number, lambda: number, dt: number) => {
@@ -109,6 +103,21 @@ export class HostController {
   sway = 0
   swayT = 0
   private waveAmt = 0
+  /** little bounces while cranking (rig.crankHop) */
+  hopping = false
+  private stepping = false
+  /** which palm the ballot box rides on in the one-handed carry poses */
+  carryHand: Side = 'L'
+  private hopT = 0
+  private airY = 0
+  /** palm-orientation weight and (character-space) target per hand */
+  private palmW = { L: 0, R: 0 }
+  private palmDir = { L: new Vector3(0, 1, 0), R: new Vector3(0, 1, 0) }
+  private reachPalm: Record<Side, PalmDir | null> = { L: null, R: null }
+  /** knuckle bones per hand (rigs with real hands) */
+  private palmKnuckles: Record<Side, { index: Object3D; pinky: Object3D; mid: Object3D; wrist: Object3D } | null> = { L: null, R: null }
+  /** world direction the palm faces (up for mitten rigs) — held objects sit on this side */
+  palmNormal = { L: new Vector3(0, 1, 0), R: new Vector3(0, 1, 0) }
   private clapAmt = 0
   private handVel = { L: new Vector3(), R: new Vector3() }
   private t = 0
@@ -125,6 +134,8 @@ export class HostController {
   /** how far the visible hand/sleeve reaches past the wrist bone (m) */
   private handExt = { L: 0, R: 0 }
   private wings: { bone: Object3D; side: number }[] = []
+  /** duplicate-skeleton bones and the primary bone they copy */
+  private mirrors: { dst: Object3D; src: Object3D }[] = []
   /** skirt strand roots + their rest direction around the waist (character space, xz) */
   private skirt: { bone: Object3D; dir: Vector3 }[] = []
   /** 0..1 happy: head tilt + chest bounce */
@@ -150,6 +161,7 @@ export class HostController {
   mixer: AnimationMixer | null = null
   private actions = new Map<string, AnimationAction>()
   private clipDriven = false
+  private activeClip: AnimationAction | null = null
   private idleClock = 0
   private nextIdle = 8
   idleEnabled = false
@@ -159,7 +171,17 @@ export class HostController {
   fullIK = true
 
   // ================================================================ setup
-  bind(model: Object3D) {
+  /** the active character's skeleton description */
+  rig: HostRig = RIGS[0]
+
+  bind(model: Object3D, rig: HostRig = RIGS[0]) {
+    this.rig = rig
+    // a new character starts without clips (setClips adds them for rigs that have their own)
+    this.mixer?.stopAllAction()
+    this.mixer = null
+    this.actions.clear()
+    this.clipDriven = false
+    this.activeClip = null
     this.root.clear()
     this.springs = []
     this.wings = []
@@ -171,22 +193,40 @@ export class HostController {
     this.root.rotation.set(0, 0, 0)
     this.root.updateMatrixWorld(true)
     const found: Partial<Record<BoneKey, Bone>> = {}
+    const keys = Object.keys(rig.bones) as BoneKey[]
     model.traverse((o) => {
       if (!(o as Bone).isBone) return
-      const b = baseName(o.name)
-      for (const k of Object.keys(HOST_BONES) as BoneKey[]) if (HOST_BONES[k] === b && !found[k]) found[k] = o as Bone
-      if (/^(Hair_Side01_[LR]|Hair_Side_Ribon01_[LR]|Hair_Front_00[12]|Tail_02|Front_Ribon_01_[LR])$/.test(b)) {
-        this.springs.push({ bone: o, theta: 0, vel: 0, gain: /Skirt/.test(b) ? 0.6 : 1 })
-      }
-      if (/^Skirt_0_\d+$/.test(b)) this.skirt.push({ bone: o, dir: new Vector3() })
-      if (/^Wing02_[LR]$/.test(b)) this.wings.push({ bone: o, side: b.endsWith('L') ? 1 : -1 })
+      const b = rig.baseName(o.name)
+      for (const k of keys) if (rig.bones[k] === b && !found[k]) found[k] = o as Bone
+      const gain = rig.springGain(b)
+      if (gain > 0) this.springs.push({ bone: o, theta: 0, vel: 0, gain })
+      if (rig.isSkirtRoot(b)) this.skirt.push({ bone: o, dir: new Vector3() })
+      const wing = rig.wingSide(b)
+      if (wing) this.wings.push({ bone: o, side: wing })
     })
-    const missing = (Object.keys(HOST_BONES) as BoneKey[]).filter((k) => !found[k])
+    const missing = keys.filter((k) => !found[k])
     if (missing.length) {
-      console.warn('[host] missing bones, procedural animation disabled:', missing)
+      console.warn(`[host] ${rig.label}: missing bones, procedural animation disabled:`, missing.map((k) => rig.bones[k]))
       return
     }
     this.bones = found as Record<BoneKey, Bone>
+    // Some exports (e.g. Unreal/Fortnite) give each mesh its own copy of the skeleton. The copy
+    // that holds the hips is "primary"; same-named bones in the other copies mirror it every frame.
+    const primaryRoot = topBone(this.bones.hips)
+    const inPrimary = (o: Object3D) => topBone(o) === primaryRoot
+    const primaryByName = new Map<string, Object3D>()
+    primaryRoot.traverse((o) => {
+      if ((o as Bone).isBone && !primaryByName.has(rig.baseName(o.name))) primaryByName.set(rig.baseName(o.name), o)
+    })
+    this.mirrors = []
+    model.traverse((o) => {
+      if (!(o as Bone).isBone || inPrimary(o)) return
+      const src = primaryByName.get(rig.baseName(o.name))
+      if (src) this.mirrors.push({ dst: o, src })
+    })
+    this.springs = this.springs.filter((sp) => inPrimary(sp.bone))
+    this.skirt = this.skirt.filter((k) => inPrimary(k.bone))
+    this.wings = this.wings.filter((w) => inPrimary(w.bone))
     model.traverse((o) => {
       if ((o as Bone).isBone) this.rest.set(o, { q: o.quaternion.clone(), p: o.position.clone() })
     })
@@ -195,7 +235,7 @@ export class HostController {
     const wq = (o: Object3D) => o.getWorldQuaternion(new Quaternion())
     const la = wp(b.lArm).distanceTo(wp(b.lElbow)) + wp(b.lElbow).distanceTo(wp(b.lWrist))
     // The mesh, not the skeleton, decides where things visibly are: measure it.
-    const vis = measureMesh(model, b)
+    const vis = measureMesh(model, b, rig)
     this.m = {
       shoulder: { L: wp(b.lArm), R: wp(b.rArm) },
       armLen: la,
@@ -206,8 +246,23 @@ export class HostController {
       chestY: wp(b.chest).y,
     }
     this.headLocal.copy(b.head.worldToLocal(vis.headCenter.clone()))
-    this.handExt = vis.handExt
+    this.handExt = { L: vis.handExt.L * rig.handReach, R: vis.handExt.R * rig.handReach }
     this.restRel = { lAnkle: wq(b.lAnkle), rAnkle: wq(b.rAnkle), head: wq(b.head) }
+    this.palmKnuckles = { L: null, R: null }
+    if (rig.palmBones) {
+      for (const sd of ['L', 'R'] as Side[]) {
+        const names = rig.palmBones[sd]
+        let index: Object3D | null = null
+        let pinky: Object3D | null = null
+        model.traverse((o) => {
+          if (!(o as Bone).isBone || topBone(o) !== topBone(b.hips)) return
+          const nm = rig.baseName(o.name)
+          if (nm === names.index) index = o
+          if (nm === names.pinky) pinky = o
+        })
+        if (index && pinky) this.palmKnuckles[sd] = { index, pinky, mid: sd === 'L' ? b.lMid : b.rMid, wrist: sd === 'L' ? b.lWrist : b.rWrist }
+      }
+    }
     this.stride = Math.max(0.7, (this.m.hipY - this.m.ankleY) * 1.35)
     // where each skirt strand hangs around the waist (rest, character space)
     const hipsW = wp(b.hips)
@@ -225,7 +280,10 @@ export class HostController {
     this.mixer = new AnimationMixer(model)
     for (const c of clips) this.actions.set(c.name.toLowerCase(), this.mixer.clipAction(c))
     this.clipDriven = this.actions.has('idle') && (this.actions.has('walking') || this.actions.has('walk'))
-    if (this.clipDriven) this.actions.get('idle')!.play()
+    if (this.clipDriven) {
+      this.activeClip = this.actions.get('idle')!
+      this.activeClip.play()
+    }
   }
 
   get metrics() {
@@ -260,12 +318,17 @@ export class HostController {
 
   /** Short step in a direction (char-space offset), e.g. half a step back while the cage spins. */
   step(localOffset: Vector3) {
-    const target = this.toWorldDir(localOffset.clone()).add(this.pos)
+    return this.stepTo(this.toWorldDir(localOffset.clone()).add(this.pos))
+  }
+
+  /**
+   * Short step to a world point. Steps don't turn the body (a step back is taken backwards, not by
+   * turning round), so a turn already under way (faceYaw) carries on during the step.
+   */
+  stepTo(target: Vector3) {
     const mid = this.pos.clone().lerp(target, 0.5)
-    const keepYaw = this.yaw
-    return this.walk([this.pos, mid, target], 0.6).then(() => {
-      this.yawTarget = keepYaw
-    })
+    this.stepping = true
+    return this.walk([this.pos, mid, target], 0.6).then(() => void (this.stepping = false))
   }
 
   faceYaw(yaw: number): Promise<void> {
@@ -295,8 +358,46 @@ export class HostController {
   }
 
   /** Attach a hand to a moving world target (crank knob, ball…). null releases with a fade. */
-  reach(side: Side, getter: Getter | null) {
+  /**
+   * Attach a hand to a moving world target (crank knob, ball…); null releases with a fade.
+   * `palm` says which way the palm should face while reaching (real-hand rigs only).
+   */
+  reach(side: Side, getter: Getter | null, palm: PalmDir | null = null) {
     this.handWorld[side] = getter
+    this.reachPalm[side] = getter ? palm : null
+  }
+
+  /** Desired palm direction (character space) for the current pose / reach, or null = free. */
+  private palmGoal(s: Side): Vector3 | null {
+    const dir = (d: PalmDir) => {
+      switch (d) {
+        case 'up': return _pg.set(0, 1, 0)
+        case 'down': return _pg.set(0, -1, 0)
+        case 'forward': return _pg.set(0, 0, 1)
+        // toward the other hand: the character's left is +X
+        case 'in': return _pg.set(s === 'R' ? 1 : -1, 0, 0.25).normalize()
+      }
+    }
+    if (this.handWorld[s] && this.handW[s] > 0.3) return this.reachPalm[s] ? dir(this.reachPalm[s]!) : null
+    switch (this.pose) {
+      case 'present':
+        return s === 'R' ? dir('up') : null
+      case 'openBall':
+        return dir('up')
+      case 'clap':
+      case 'clasp':
+      case 'presentTwo':
+      case 'carryBox':
+        return dir('in')
+      case 'carrySide':
+        return s === this.carryHand ? dir('up') : null
+      case 'carryWave':
+        return s === this.carryHand ? dir('up') : dir('forward')
+      case 'wave':
+        return s === 'R' ? dir('forward') : null
+      default:
+        return null
+    }
   }
 
   lookAt(getter: Getter | null) {
@@ -383,7 +484,13 @@ export class HostController {
     this.bow = damp(this.bow, this.bowT, 3.5, dt)
     this.twist = damp(this.twist, this.twistT, 3, dt)
     this.sway = damp(this.sway, this.swayT, 2.5, dt)
-    this.waveAmt = damp(this.waveAmt, this.pose === 'wave' ? 1 : 0, 4, dt)
+    this.waveAmt = damp(this.waveAmt, this.pose === 'wave' || this.pose === 'carryWave' ? 1 : 0, 4, dt)
+    for (const sd of ['L', 'R'] as Side[]) {
+      const goal = this.palmGoal(sd)
+      this.palmW[sd] = damp(this.palmW[sd], goal ? 1 : 0, 6, dt)
+      // the target direction itself glides too, so palm turns are never instant
+      if (goal) this.palmDir[sd].lerp(goal, 1 - Math.exp(-6 * dt)).normalize()
+    }
     const clapWas = Math.floor((this.t - dt) * 7.5 / Math.PI)
     this.clapAmt = damp(this.clapAmt, this.pose === 'clap' ? 1 : 0, 5, dt)
     if (this.clapAmt > 0.5 && Math.floor((this.t * 7.5) / Math.PI) !== clapWas) audio.play('clap', { vol: 0.25, pos: this.pos })
@@ -422,7 +529,7 @@ export class HostController {
       this.vel.subVectors(p, this.pos).divideScalar(Math.max(dt, 1e-4))
       this.pos.copy(p)
       const tan = this.path.getTangentAt(Math.min(0.999, u))
-      if (this.pathDist < this.pathLen - 0.05) this.yawTarget = Math.atan2(tan.x, tan.z)
+      if (this.pathDist < this.pathLen - 0.05 && !this.stepping) this.yawTarget = Math.atan2(tan.x, tan.z)
       this.gait += v * dt
       if (this.pathDist >= this.pathLen - 1e-4) {
         this.path = null
@@ -439,7 +546,12 @@ export class HostController {
     if (!this.path) this.gait += Math.min(turnRate, 3) * 0.12 * dt
     const walking = this.path !== null || turnRate > 0.6
     this.walkBlend = damp(this.walkBlend, walking ? 1 : 0, walking ? 8 : 5, dt)
+    // cranking hops: quick parabolic bounces, eased in and out
+    this.hopT = this.hopping ? this.hopT + dt : 0
+    const air = this.hopping ? Math.abs(Math.sin(this.hopT * 6.5)) * this.rig.crankHop : 0
+    this.airY = damp(this.airY, air, 22, dt)
     this.root.position.copy(this.pos)
+    this.root.position.y += this.airY
     this.root.rotation.set(0, this.yaw, 0)
     if (this.clipDriven) this.crossfadeClips(walking)
   }
@@ -449,12 +561,14 @@ export class HostController {
     const idle = this.actions.get('idle')
     if (!walk || !idle) return
     const want = walking ? walk : idle
-    const other = walking ? idle : walk
-    if (!want.isRunning() || want.getEffectiveWeight() < 0.99) {
-      if (!want.isRunning()) want.reset().play()
-      want.crossFadeFrom(other, 0.4, false)
-    }
+    if (this.activeClip === want) return
+    // one crossfade per change (not every frame), synced so the walk cycle starts cleanly
+    const from = this.activeClip ?? idle
+    want.reset().play()
+    if (from !== want) want.crossFadeFrom(from, 0.35, false)
+    this.activeClip = want
   }
+
 
   private setHandsFromPose(dt: number, snap: boolean) {
     const m = this.m
@@ -470,7 +584,7 @@ export class HostController {
       const sx = s === 'L' ? 1 : -1
       const reach = m.armLen + this.handExt[s]
       // relaxed: hands hang a little out and forward, elbows soft
-      target[s].set(sh[s].x + sx * 0.1, sh[s].y - reach * 0.45 + breath, 0.2 + swing * (s === 'L' ? -1 : 1))
+      target[s].set(sh[s].x + sx * this.rig.armRest.out, sh[s].y - reach * this.rig.armRest.hang + breath, this.rig.armRest.forward + swing * (s === 'L' ? -1 : 1))
     }
     switch (this.pose) {
       case 'clasp':
@@ -482,23 +596,44 @@ export class HostController {
         break
       case 'clap':
         // hands meet in front of the chest; the clapping motion is layered on after the spring
-        target.L.set(0.08, y0 - 0.15, 0.3)
-        target.R.set(-0.08, y0 - 0.15, 0.3)
+        target.L.set(this.rig.clapHalfGap + 0.05, y0 - 0.15, 0.3)
+        target.R.set(-this.rig.clapHalfGap - 0.05, y0 - 0.15, 0.3)
         break
       case 'present':
         // beside the face, not in front of it
-        target.R.set(-0.24, y0 + 0.1, 0.4)
+        // (big chibi heads: lower, closer and out to the side, under the snout)
+        target.R.set(-0.24 - this.rig.headClear * 1.3, y0 + 0.1 - this.rig.headClear * 1.8, 0.4 - this.rig.headClear * 0.4)
         target.L.set(0.15, y0 - 0.38, 0.16)
         break
       case 'openBall':
         // after the split each hand keeps one half: right hand low-centre, left hand out to her left
-        target.R.set(-0.12, y0 + 0.05, 0.42)
-        target.L.set(0.24, y0 + 0.14, 0.38)
+        // (big chibi heads: lower and wider so the halves stay clear of the snout)
+        target.R.set(-0.12 - this.rig.headClear, y0 + 0.05 - this.rig.headClear * 1.5, 0.42 - this.rig.headClear * 0.6)
+        target.L.set(0.24 + this.rig.headClear * 0.5, y0 + 0.14 - this.rig.headClear, 0.38 - this.rig.headClear * 0.6)
         break
       case 'presentTwo':
         target.L.set(0.13, y0 + 0.22, 0.34)
         target.R.set(-0.13, y0 + 0.22, 0.34)
         break
+      case 'carryBox': {
+        // ballot box carried in front of the belly, the hands gripping the middle of its sides
+        // (so they show on both sides of it instead of hiding behind it)
+        const half = this.rig.carryHalfWidth
+        const y = y0 - Math.min(0.42, m.armLen * 0.62)
+        target.L.set(half, y, this.rig.carryForward)
+        target.R.set(-half, y, this.rig.carryForward)
+        break
+      }
+      case 'carryWave':
+      case 'carrySide': {
+        // box resting on one palm beside the hip, clear of the leg; the other hand waves or hangs
+        const c = this.carryHand
+        const cx = c === 'L' ? 1 : -1
+        target[c].set(sh[c].x + cx * (0.1 + this.rig.carryHalfWidth * 0.25), y0 - Math.min(0.4, m.armLen * 0.6), 0.1)
+        const w: Side = c === 'L' ? 'R' : 'L'
+        if (this.pose === 'carryWave') target[w].set(sh[w].x - cx * 0.3, y0 + 0.42, 0.12)
+        break
+      }
       case 'hairTouch':
         // tuck hair behind the ear: hand beside the head (outside the face), elbow out to the side
         target.L.set(sh.L.x + 0.06, m.headY - 0.04, 0.01)
@@ -540,7 +675,7 @@ export class HostController {
       // skip ("chân sáo"): a hop on every step — the hips rise mid-step (the stance leg reaches full
       // length so that foot leaves the floor too) and dip a little on landing (squash)
       const stepPh = ((((ph / Math.PI) % 1) + 1) % 1)
-      const hop = Math.pow(Math.sin(stepPh * Math.PI), 1.5) * 0.075 - Math.exp(-stepPh * 14) * 0.03
+      const hop = Math.pow(Math.sin(stepPh * Math.PI), 1.5) * this.rig.hop - Math.exp(-stepPh * 14) * 0.03
       const bob = hop * this.walkBlend + Math.sin(this.t * 1.6) * 0.002
       const lower = this.crouch + 0.012 + this.bow * 0.03
       const back = -this.crouch * 0.35
@@ -561,6 +696,12 @@ export class HostController {
       const fwd = this.lean * 0.7 + this.bow - this.crouch * 0.6
       rotateWorld(b.spine, _q.setFromAxisAngle(right, fwd * 0.5 + breath).premultiply(_q2.setFromAxisAngle(_u.copy(Y), counter + this.twist * 0.4)))
       rotateWorld(b.chest, _q.setFromAxisAngle(right, fwd * 0.5 - breath * 0.5).premultiply(_q2.setFromAxisAngle(_u.copy(Y), this.twist * 0.3)))
+      if (this.sway) rotateWorld(b.spine, _q.setFromAxisAngle(_u.copy(Z).applyQuaternion(_rootQ), this.sway))
+    } else {
+      // clip-driven body: layer the director's lean / bow / crouch and idle twist on top of the clip
+      const fwd = this.lean * 0.7 + this.bow + this.crouch * 1.5
+      rotateWorld(b.spine, _q.setFromAxisAngle(right, fwd * 0.5).premultiply(_q2.setFromAxisAngle(_u.copy(Y), this.twist * 0.4)))
+      rotateWorld(b.chest, _q.setFromAxisAngle(right, fwd * 0.5))
       if (this.sway) rotateWorld(b.spine, _q.setFromAxisAngle(_u.copy(Z).applyQuaternion(_rootQ), this.sway))
     }
 
@@ -607,6 +748,18 @@ export class HostController {
       elbow.getWorldPosition(_w)
       _u.subVectors(this.palm[s], _w).normalize()
       this.palm[s].addScaledVector(_u, this.handExt[s] * 0.85)
+    }
+    for (const s of ['L', 'R'] as Side[]) {
+      if (this.palmKnuckles[s]) this.palmNormal[s].copy(this.measurePalmNormal(s))
+      else this.palmNormal[s].set(0, 1, 0)
+    }
+    // mirror the pose onto duplicate skeletons (multi-skin exports)
+    if (this.mirrors.length) {
+      for (const m of this.mirrors) {
+        m.dst.quaternion.copy(m.src.quaternion)
+        m.dst.position.copy(m.src.position)
+      }
+      for (const m of this.mirrors) if (m.dst.parent && !(m.dst.parent as Bone).isBone) m.dst.updateMatrixWorld(true)
     }
   }
 
@@ -680,7 +833,8 @@ export class HostController {
     const sx = s === 'L' ? 1 : -1
     _v.copy(this.handLocal[s])
     // gesture oscillations ride on top of the eased pose and fade in/out with it
-    if (s === 'R' && this.waveAmt > 0.001) _v.x += Math.sin(this.t * 9) * 0.08 * this.waveAmt
+    const waveSide = this.pose === 'carryWave' && this.carryHand === 'R' ? 'L' : 'R'
+    if (s === waveSide && this.waveAmt > 0.001) _v.x += Math.sin(this.t * 9) * 0.08 * this.waveAmt
     if (this.clapAmt > 0.001) _v.x += (s === 'L' ? 1 : -1) * (Math.abs(Math.sin(this.t * 7.5)) * 0.07 - 0.05) * this.clapAmt
     const local = this.toWorld(_v).clone()
     const g = this.handWorld[s]
@@ -698,6 +852,24 @@ export class HostController {
     const lower = s === 'L' ? b.lElbow : b.rElbow
     const wrist = s === 'L' ? b.lWrist : b.rWrist
     solveTwoBone(upper, lower, wrist, local, pole.clone(), 1, this.handExt[s])
+    // real hands: roll the wrist about the forearm until the measured palm faces the pose's direction
+    // (up to cradle the ball, toward each other to clap/hold the ticket, forward to wave, down on the knob)
+    const pb = this.palmKnuckles[s]
+    if (pb && this.palmW[s] > 0.001) {
+      lower.getWorldPosition(_v)
+      wrist.getWorldPosition(_w)
+      const axis = _u.subVectors(_w, _v).normalize().clone()
+      const n = this.measurePalmNormal(s)
+      const nP = n.addScaledVector(axis, -n.dot(axis))
+      const goalW = this.palmDir[s].clone().applyQuaternion(this.root.quaternion)
+      const up = goalW.addScaledVector(axis, -goalW.dot(axis))
+      if (nP.lengthSq() > 1e-6 && up.lengthSq() > 1e-6) {
+        nP.normalize()
+        up.normalize()
+        const ang = Math.atan2(new Vector3().crossVectors(nP, up).dot(axis), nP.dot(up))
+        rotateWorld(wrist, _q.setFromAxisAngle(axis, ang * this.palmW[s]))
+      }
+    }
   }
 
   /**
@@ -801,6 +973,23 @@ export class HostController {
     this.twistT = clamp(Math.atan2(d.x, d.z) * 0.25, -0.3, 0.3)
   }
 
+  /**
+   * Palm direction from the knuckles: fingers × (index → pinky), mirrored for the left hand.
+   * (Right hand, palm down, fingers forward: index on the inside → the cross product points down.)
+   */
+  private measurePalmNormal(s: Side): Vector3 {
+    const k = this.palmKnuckles[s]!
+    const w = k.wrist.getWorldPosition(new Vector3())
+    const ix = k.index.getWorldPosition(new Vector3())
+    const px = k.pinky.getWorldPosition(new Vector3())
+    // rigs without a middle finger (lMid = wrist): fingers point at the knuckles' midpoint
+    const f = (k.mid === k.wrist ? new Vector3().addVectors(ix, px).multiplyScalar(0.5) : k.mid.getWorldPosition(new Vector3())).sub(w)
+    const i2p = px.sub(ix)
+    const n = new Vector3().crossVectors(f, i2p)
+    if (s === 'L') n.negate()
+    return n.lengthSq() > 1e-10 ? n.normalize() : n.set(0, 1, 0)
+  }
+
   // ---------------------------------------------------------------- helpers
   toWorld(local: Vector3) {
     return local.applyQuaternion(this.root.quaternion).add(this.pos)
@@ -824,6 +1013,13 @@ export class HostController {
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 
+/** Highest bone above `o` (the root joint of its skeleton copy). */
+function topBone(o: Object3D): Object3D {
+  let cur = o
+  while (cur.parent && (cur.parent as Bone).isBone) cur = cur.parent
+  return cur
+}
+
 /** Things worth a glance on stage while idle. */
 const GAZE_POINTS = [
   CAGE.center.clone(),
@@ -837,13 +1033,12 @@ const GAZE_POINTS = [
   new Vector3(0.6, 4.8, 2.0), // the lighting rig
 ]
 
-const HAND_BONE = /wrist|Finger|Thumb|Hand_Ribon/
 
 /**
  * Look at the skinned vertices to find where the rig *visibly* is: the head centre and how far each
  * sleeve/hand extends past the wrist bone.
  */
-function measureMesh(model: Object3D, b: Record<BoneKey, Bone>) {
+function measureMesh(model: Object3D, b: Record<BoneKey, Bone>, rig: HostRig) {
   const head = new Vector3()
   let headN = 0
   const ext = { L: 0, R: 0 }
@@ -871,9 +1066,9 @@ function measureMesh(model: Object3D, b: Record<BoneKey, Bone>) {
           best = si.getComponent(i, k)
         }
       }
-      const name = baseName(bones[best].name)
-      const isHead = name === 'Head'
-      const side: Side | null = HAND_BONE.test(name) ? (/(Left|_L)/.test(name) ? 'L' : /(Right|_R)/.test(name) ? 'R' : null) : null
+      const name = rig.baseName(bones[best].name)
+      const isHead = name === rig.bones.head
+      const side: Side | null = rig.handSide(name)
       if (!isHead && !side) continue
       mesh.getVertexPosition(i, v).applyMatrix4(mesh.matrixWorld)
       if (isHead) {

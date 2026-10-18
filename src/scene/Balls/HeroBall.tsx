@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { AdditiveBlending, BufferAttribute, BufferGeometry, CanvasTexture, Color, Group, Mesh, MeshBasicMaterial, Points, PointsMaterial, Quaternion, SphereGeometry, Sprite, SpriteMaterial, Vector3 } from 'three'
+import { AdditiveBlending, DoubleSide, BufferAttribute, BufferGeometry, CanvasTexture, Color, Group, Mesh, MeshBasicMaterial, Points, PointsMaterial, Quaternion, SphereGeometry, Sprite, SpriteMaterial, Vector3 } from 'three'
 import { BALL_RADIUS } from '../layout'
 import { makeBallMaterial } from './ballMaterial'
 import { director } from '../../director/Director'
@@ -36,6 +36,8 @@ const _q = new Quaternion()
 const _q2 = new Quaternion()
 const _ax = new Vector3(0, 1, 0)
 const _p = new Vector3()
+const _p2 = new Vector3()
+const _p3 = new Vector3()
 const WARM = new Color(1, 0.85, 0.55)
 
 /** Soft radial gradient used by the glow sprite and the sparks. */
@@ -115,6 +117,8 @@ export function HeroBall() {
 
   const mat = useMemo(() => {
     const m = makeBallMaterial({ instanced: false })
+    // open half-shells are seen from inside as well
+    m.side = DoubleSide
     m.emissive = new Color(0, 0, 0)
     return m
   }, [])
@@ -152,7 +156,11 @@ export function HeroBall() {
       g.updateMatrixWorld(true)
       top.current.getWorldPosition(_p)
       top.current.getWorldQuaternion(_q2)
-      tw.position.copy(_p).lerp(hero.topPos, hero.split)
+      // free (in the hand): the shell mesh is built around its hinge, R behind its centre, so shift
+      // by that offset to put the dome's centre exactly at topPos
+      _p2.set(0, 0, R * hero.scale).applyQuaternion(hero.topQuat)
+      _p3.copy(hero.topPos).sub(_p2)
+      tw.position.copy(_p).lerp(_p3, hero.split)
       tw.quaternion.copy(_q2).slerp(hero.topQuat, hero.split)
       tw.scale.setScalar(hero.scale)
     }
@@ -170,12 +178,13 @@ export function HeroBall() {
       core.current.scale.setScalar(0.6 + inner * 0.35)
     }
     // 2D light: a camera-facing glow sprite + spark particles (no real light, no extra shading cost)
-    const glowAmt = Math.min(1.6, lights.burst * 1.4 + inner * 0.6 + hero.glow * 0.25)
+    // kept soft: on a big projected screen a full-strength burst is blinding
+    const glowAmt = Math.min(0.9, lights.burst * 0.7 + inner * 0.4 + hero.glow * 0.2)
     if (glow.current) {
       glow.current.visible = glowAmt > 0.02
-      glowMat.opacity = Math.min(1, glowAmt)
+      glowMat.opacity = Math.min(0.7, glowAmt)
       glowMat.color.copy(hero.color).lerp(WARM, 0.6)
-      const gs = R * hero.scale * (3 + glowAmt * 6)
+      const gs = R * hero.scale * (2.5 + glowAmt * 3.5)
       glow.current.scale.set(gs, gs, 1)
       glow.current.position.copy(hero.pos)
     }
