@@ -39,8 +39,8 @@ export function StageText() {
       </div>
       <div ref={finale} className="pointer-events-none fixed inset-0 z-10 flex flex-col items-center justify-center text-center" style={{ opacity: 0 }}>
         <div className="text-[11px] tracking-[0.6em] text-muted uppercase">{title}</div>
-        <div className="mt-4 font-serif text-[clamp(2rem,6vw,5rem)] tracking-[0.25em] text-paper">Cảm ơn quý vị</div>
-        <div className="mt-3 font-serif text-lg tracking-[0.2em] text-brass-hi/80 italic">Hẹn gặp lại ở đêm sau</div>
+        <div className="mt-4 font-serif text-[clamp(2rem,6vw,5rem)] tracking-[0.25em] text-paper">Thank you</div>
+        <div className="mt-3 font-serif text-lg tracking-[0.2em] text-brass-hi/80 italic">See you next time</div>
       </div>
     </>
   )

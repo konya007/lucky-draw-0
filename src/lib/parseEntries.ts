@@ -42,7 +42,6 @@ export function splitLine(line: string): string[] {
 }
 
 export function parseEntries(text: string): { entries: Entry[]; stats: ParseStats } {
-  // trailing blank lines (e.g. after a paste) are not counted as skipped rows
   const lines = text.replace(/\s+$/, '').split(/\r?\n/)
   if (lines.length === 1 && !lines[0].trim()) lines.length = 0
   const entries: Entry[] = []

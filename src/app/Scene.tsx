@@ -52,7 +52,6 @@ function Precompile() {
   useEffect(() => {
     if (active || done.current) return
     done.current = true
-    // let one frame render first so materials exist, then compile and announce readiness
     requestAnimationFrame(() => {
       try {
         gl.compile(scene, camera)
@@ -68,7 +67,7 @@ function CrankHint() {
   const hint = useGameStore((s) => s.hint)
   return (
     <Html position={[CRANK.hub.x - 0.05, CRANK.hub.y + 0.5, 0.15]} center pointerEvents="none" zIndexRange={[5, 0]}>
-      <div className={`whitespace-nowrap font-serif text-sm tracking-[0.3em] text-paper/70 italic transition-opacity duration-1000 select-none ${hint ? 'opacity-100' : 'opacity-0'}`}>Kéo cần để quay</div>
+      <div className={`whitespace-nowrap font-serif text-sm tracking-[0.3em] text-paper/70 italic transition-opacity duration-1000 select-none ${hint ? 'opacity-100' : 'opacity-0'}`}>Pull the crank to spin</div>
     </Html>
   )
 }

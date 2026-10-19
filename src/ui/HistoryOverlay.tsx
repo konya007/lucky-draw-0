@@ -28,8 +28,8 @@ export function HistoryOverlay() {
   const rows = () => {
     const width = Math.max(1, ...history.map((h) => h.entry.cols.length))
     return [
-      ['#', 'Seri', 'Thời gian', 'Sự kiện', ...Array.from({ length: width }, (_, i) => (i === 0 ? 'Tên' : i === 1 ? 'Giải' : `Cột ${i + 1}`))],
-      ...history.map((h, i) => [String(i + 1), h.serial, new Date(h.at).toLocaleString('vi-VN'), h.title, ...h.entry.cols]),
+      ['#', 'Serial', 'Time', 'Event', ...Array.from({ length: width }, (_, i) => (i === 0 ? 'Name' : i === 1 ? 'Prize' : `Column ${i + 1}`))],
+      ...history.map((h, i) => [String(i + 1), h.serial, new Date(h.at).toLocaleString('en-GB'), h.title, ...h.entry.cols]),
     ]
   }
   const exportCSV = () => {
@@ -52,14 +52,14 @@ export function HistoryOverlay() {
     <div className="fixed inset-0 z-40 flex flex-col bg-black/70" onPointerDown={() => set({ historyOpen: false })}>
       <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5 pb-3" onPointerDown={(e) => e.stopPropagation()}>
         <h2 className="font-serif text-4xl tracking-[0.15em]">
-          Sổ vé <span className="text-2xl text-muted">({history.length})</span>
+          Ticket book <span className="text-2xl text-muted">({history.length})</span>
         </h2>
         <div className="flex gap-2 text-sm tracking-[0.16em] uppercase">
           <button className={tool} onClick={exportCSV} disabled={!history.length}>
-            Xuất CSV
+            Export CSV
           </button>
           <button className={tool} onClick={copy} disabled={!history.length}>
-            {copied ? 'Đã chép' : 'Sao chép'}
+            {copied ? 'Copied' : 'Copy'}
           </button>
           <button
             className={confirm ? 'border border-red-400 px-3 py-1.5 text-red-300' : tool}
@@ -70,9 +70,9 @@ export function HistoryOverlay() {
             }}
             disabled={!history.length && !absent.length}
           >
-            {confirm ? 'Xóa thật?' : 'Xóa sổ'}
+            {confirm ? 'Really clear?' : 'Clear book'}
           </button>
-          <button className="px-2 text-2xl leading-none text-muted hover:text-paper" aria-label="Đóng" onClick={() => set({ historyOpen: false })}>
+          <button className="px-2 text-2xl leading-none text-muted hover:text-paper" aria-label="Close" onClick={() => set({ historyOpen: false })}>
             ×
           </button>
         </div>
@@ -81,13 +81,13 @@ export function HistoryOverlay() {
       <div className="scroll-thin flex-1 overflow-y-auto px-6 pb-10">
         {absent.length > 0 && (
           <div className="mx-auto mb-2 max-w-7xl border border-red-400/30 bg-red-950/30 px-4 py-3" onPointerDown={(e) => e.stopPropagation()}>
-            <div className="mb-2 text-sm tracking-[0.16em] text-red-200/80 uppercase">Vắng mặt, không quay lại ({absent.length})</div>
+            <div className="mb-2 text-sm tracking-[0.16em] text-red-200/80 uppercase">Absent, not drawn again ({absent.length})</div>
             <div className="flex flex-wrap gap-2">
               {absent.map((w) => (
                 <span key={w.serial} className="flex items-center gap-3 border border-red-300/30 px-3 py-1.5 text-xl">
                   <span className="line-through decoration-red-300/70">{show(w.entry.cols[0] || w.entry.raw)}</span>
-                  <button className="text-sm text-brass hover:text-brass-hi" title="Cho người này vào lại thùng phiếu" onClick={() => restore(w.serial)}>
-                    ↺ Trả lại thùng
+                  <button className="text-sm text-brass hover:text-brass-hi" title="Put this person back into the draw" onClick={() => restore(w.serial)}>
+                    ↺ Back into the draw
                   </button>
                 </span>
               ))}
@@ -95,7 +95,7 @@ export function HistoryOverlay() {
           </div>
         )}
         {history.length === 0 ? (
-          <div className="mt-24 text-center font-serif text-3xl text-muted italic">Hộp vé còn trống.</div>
+          <div className="mt-24 text-center font-serif text-3xl text-muted italic">The ticket box is empty.</div>
         ) : (
           <div className="mx-auto grid max-w-7xl grid-cols-[repeat(auto-fill,minmax(28rem,1fr))] gap-x-8 gap-y-10 pt-4">
             {newestFirst.map((w, i) => (
@@ -151,7 +151,7 @@ function TicketCard({ win, index, delay }: { win: Win; index: number; delay: num
           <div className="mt-1 line-clamp-2 font-serif text-4xl leading-tight font-extrabold text-[#0d0703]">{name}</div>
           {rest[0] && <div className="mt-1 truncate text-2xl font-bold tracking-wide text-[#7a1f12]">{rest[0]}</div>}
           {rest.length > 1 && <div className="truncate text-base font-semibold text-[#3d2a12]">{rest.slice(1).join(' · ')}</div>}
-          <div className="mt-1 text-xs tracking-widest text-[#6e5232] uppercase">{new Date(win.at).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })}</div>
+          <div className="mt-1 text-xs tracking-widest text-[#6e5232] uppercase">{new Date(win.at).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</div>
         </div>
         <div className="absolute top-2 right-3 font-mono text-sm font-bold text-[#8a6423]">#{index}</div>
       </div>
@@ -159,17 +159,17 @@ function TicketCard({ win, index, delay }: { win: Win; index: number; delay: num
       <div className={`mt-3 flex justify-center gap-3 text-sm tracking-[0.12em] uppercase transition-opacity duration-300 ${tools ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
         <button
           className="border border-brass/40 bg-black/50 px-4 py-2 text-paper/85 hover:border-brass-hi hover:text-brass-hi"
-          title="Xóa vé này, người này được cho lại vào thùng phiếu"
+          title="Remove this ticket and put the person back into the draw"
           onClick={() => removeWin(win.serial, 'return')}
         >
-          Xóa · trả lại thùng
+          Remove · back to draw
         </button>
         <button
           className="border border-red-400/40 bg-black/50 px-4 py-2 text-red-200/90 hover:border-red-300 hover:text-red-200"
-          title="Người trúng vắng mặt: xóa vé và không cho vào lại thùng phiếu"
+          title="Winner is absent: remove the ticket and keep the person out of the draw"
           onClick={() => removeWin(win.serial, 'absent')}
         >
-          Xóa · vắng mặt
+          Remove · absent
         </button>
       </div>
     </div>

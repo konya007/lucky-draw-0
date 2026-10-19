@@ -66,15 +66,12 @@ class AudioManager {
 
   private async loadManifest() {
     try {
-      // 1) files dropped in public/audio named after a sound (hitBall.mp3, music.ogg …)
       const known = new Set<string>([...SFX, ...LOOPS])
       const map: Record<string, string> = {}
       for (const f of folderFiles) {
         const name = f.replace(/\.[^.]+$/, '')
-        // per-character voice lines: voiceStart_<rigId>, voiceCongrats_<rigId> …
         if (known.has(name) || /^voice[A-Z]\w*_[\w-]+$/.test(name)) map[name] = f
       }
-      // 2) manifest.json entries win (for files with other names)
       try {
         const m = (await (await fetch(assetUrl('audio/manifest.json'))).json()) as { files?: Record<string, string> }
         Object.assign(map, m.files ?? {})
@@ -185,13 +182,23 @@ class AudioManager {
   }
 
   /**
-   * A host voice line: the character's own file (`voiceStart_<rigId>.mp3`) if present, else the shared
-   * `voiceStart.mp3`, else the synthesized cue. Voices play at their natural pitch (no random detune).
+   * A host voice line, first match wins: the model pack's own file (info.json "voices"), then
+   * `public/audio/voiceStart_<rigId>.mp3`, then the shared `voiceStart.mp3`, else the synthesized cue.
+   * Voices play at their natural pitch (no random detune).
    */
-  playVoice(line: 'voiceStart' | 'voiceCongrats', rigId: string, o: PlayOpts = {}) {
+  async playVoice(line: 'voiceStart' | 'voiceCongrats', rig: { id: string; urls?: { voices: Partial<Record<string, string>> } }, o: PlayOpts = {}) {
     const ctx = this.ctx
     if (!ctx || ctx.state !== 'running') return
-    const file = this.files.get(`${line}_${rigId}`) ?? this.files.get(line)
+    const key = `${line}_${rig.id}`
+    const packUrl = rig.urls?.voices[line]
+    if (packUrl && !this.files.has(key)) {
+      try {
+        this.files.set(key, await ctx.decodeAudioData(await (await fetch(packUrl)).arrayBuffer()))
+      } catch (e) {
+        console.warn(`[audio] voice ${packUrl}`, e)
+      }
+    }
+    const file = this.files.get(key) ?? this.files.get(line)
     if (!file) return this.play(line, o)
     const out = ctx.createGain()
     out.gain.value = o.vol ?? 1
@@ -247,7 +254,6 @@ class AudioManager {
     this.synth(name, out, rate)
   }
 
-  // ------------------------------------------------------------------ synthesis
   private makeNoise(sec: number) {
     const ctx = this.ctx!
     const b = ctx.createBuffer(1, ctx.sampleRate * sec, ctx.sampleRate)
@@ -420,7 +426,6 @@ class AudioManager {
     }
   }
 
-  // ------------------------------------------------------------------ loops
   private startLoops() {
     const ctx = this.ctx!
     const mk = (name: LoopName, buf: AudioBuffer, bus: GainNode) => {
@@ -437,7 +442,7 @@ class AudioManager {
     mk('drumroll', this.renderDrumroll(), this.sfx)
     this.defaultMusic = this.renderMusic()
     mk('music', this.defaultMusic, this.music)
-    this.setLoop('room', 0.16, 1)
+    // all loops start silent: the Director fades music and room tone in when the show starts
   }
 
   private buffer(sec: number, fill: (d: Float32Array, sr: number) => void) {

@@ -1,5 +1,9 @@
-name: Deploy to gh-pages
+name: Version & deploy to gh-pages
 
+# Every push to main (direct pushes and merged pull requests) bumps the version in package.json,
+# commits it back as "chore(release): vX.Y.Z [skip ci]" with a tag, then builds that commit and
+# deploys it. Bump size: patch by default, "#minor" or "#major" anywhere in the pushed commit
+# messages picks a bigger step.
 on:
   push:
     branches: [main]
@@ -8,17 +12,59 @@ on:
 permissions:
   contents: write
 
-# Never let two deploys race on the gh-pages branch.
+# Never let two runs race on the version number or the gh-pages branch.
 concurrency:
-  group: deploy-gh-pages
-  cancel-in-progress: true
+  group: release-main
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  version:
+    # the bot's own release commit must not bump again
+    if: ${{ !contains(github.event.head_commit.message, 'chore(release)') }}
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      sha: ${{ steps.bump.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Bump version
+        id: bump
+        env:
+          COMMITS: ${{ toJSON(github.event.commits.*.message) }}
+        run: |
+          LEVEL=patch
+          if echo "$COMMITS" | grep -qi '#major'; then LEVEL=major
+          elif echo "$COMMITS" | grep -qi '#minor'; then LEVEL=minor; fi
+          # updates package.json and package-lock.json, no git tag yet
+          VERSION=$(npm version "$LEVEL" --no-git-tag-version | sed 's/^v//')
+          echo "Bumped ($LEVEL) to $VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore(release): v$VERSION [skip ci]"
+          git tag "v$VERSION"
+          git push origin HEAD:main --follow-tags
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -42,7 +88,7 @@ jobs:
           else
             BASE="/$REPO/"  # project site -> served from https://<owner>.github.io/<repo>/
           fi
-          echo "Vite base path: $BASE"
+          echo "Vite base path: $BASE (v${{ needs.version.outputs.version }})"
           VITE_BASE_PATH="$BASE" pnpm build
 
       - name: Deploy to gh-pages

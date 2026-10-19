@@ -119,7 +119,7 @@ export async function drawTicket(win: Win): Promise<CanvasTexture> {
   g.fillStyle = '#6e5232'
   g.font = '500 38px Inter, sans-serif'
   const d = new Date(win.at)
-  spaced(g, d.toLocaleString('vi-VN', { dateStyle: 'long', timeStyle: 'short' }).toUpperCase(), cx, 900, 4)
+  spaced(g, d.toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' }).toUpperCase(), cx, 900, 4)
 
   const t = new CanvasTexture(c)
   t.colorSpace = SRGBColorSpace

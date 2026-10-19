@@ -12,6 +12,8 @@ export interface StageConfig {
     brightness: number
     tint: string
     fit: 'cover' | 'stretch'
+    /** LED-wall look: glow 0..1 (0 = flat print), LED dot grid strength 0..1, LEDs per metre */
+    led: { glow: number; grid: number; pitch: number }
   }
   propLights: {
     enabled: boolean
@@ -23,7 +25,7 @@ export interface StageConfig {
 }
 
 export const DEFAULT_STAGE_CONFIG: StageConfig = {
-  backstage: { image: null, width: 12, height: 6.5, position: [0, 3, -3.15], brightness: 0.35, tint: '#ffffff', fit: 'cover' },
+  backstage: { image: null, width: 12, height: 6.5, position: [0, 3, -3.15], brightness: 0.35, tint: '#ffffff', fit: 'cover', led: { glow: 0.6, grid: 0.35, pitch: 48 } },
   propLights: { enabled: true, color: '#FFE3B0', beamStrength: 0.05, poolStrength: 0.35, items: [] },
 }
 
@@ -35,7 +37,7 @@ export async function loadStageConfig() {
     const res = await fetch(assetUrl('stage-config.json'), { cache: 'no-cache' })
     const j = (await res.json()) as Partial<StageConfig>
     useStageConfig.setState({
-      backstage: { ...DEFAULT_STAGE_CONFIG.backstage, ...(j.backstage ?? {}) },
+      backstage: { ...DEFAULT_STAGE_CONFIG.backstage, ...(j.backstage ?? {}), led: { ...DEFAULT_STAGE_CONFIG.backstage.led, ...(j.backstage?.led ?? {}) } },
       propLights: { ...DEFAULT_STAGE_CONFIG.propLights, ...(j.propLights ?? {}) },
     })
   } catch {

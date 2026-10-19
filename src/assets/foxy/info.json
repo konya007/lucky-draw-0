@@ -1,0 +1,90 @@
+{
+  "$schema": "../model.schema.json",
+  "id": "fox",
+  "name": "Specs the Fox",
+  "order": 0,
+  "author": "Mobile Programming Club",
+  "license": "Made for the GRAND DRAW project",
+  "description": "Chibi fox with glasses; ships Idle/Walk/Wave/Jump/TailWag clips.",
+  "files": {
+    "model": "host.glb"
+  },
+  "voices": {},
+  "height": 1.3,
+  "materials": "lit",
+  "centreOn": "hips",
+  "useClips": true,
+  "bones": {
+    "hips": "hips",
+    "spine": "spine",
+    "chest": "chest",
+    "neck": "neck",
+    "head": "head",
+    "lArm": "upper_armL",
+    "lElbow": "forearmL",
+    "lWrist": "handL",
+    "rArm": "upper_armR",
+    "rElbow": "forearmR",
+    "rWrist": "handR",
+    "lLeg": "thighL",
+    "lKnee": "shinL",
+    "lAnkle": "footL",
+    "lToe": "toeL",
+    "rLeg": "thighR",
+    "rKnee": "shinR",
+    "rAnkle": "footR",
+    "rToe": "toeR",
+    "lMid": "handL",
+    "rMid": "handR"
+  },
+  "palmBones": {
+    "L": {
+      "index": "f_index01L",
+      "pinky": "f_pinky01L"
+    },
+    "R": {
+      "index": "f_index01R",
+      "pinky": "f_pinky01R"
+    }
+  },
+  "springs": [
+    {
+      "match": "^ear[LR]0[12]$",
+      "gain": 0.7
+    }
+  ],
+  "hands": {
+    "match": "^(hand|f_index01|f_pinky01|thumb01)[LR]$",
+    "left": "L$",
+    "right": "R$"
+  },
+  "motion": {
+    "hop": 0.05,
+    "armRest": {
+      "out": 0.08,
+      "hang": 0.7,
+      "forward": 0.08
+    },
+    "handReach": 1,
+    "hold": {
+      "ballScale": 1.6,
+      "lift": 0.02
+    },
+    "ticketScale": 1.2,
+    "clapHalfGap": 0.05,
+    "pickup": {
+      "lean": 0.45,
+      "crouch": 0.05
+    },
+    "carryHalfWidth": 0.23,
+    "carryForward": 0.4,
+    "crankHop": 0.3,
+    "reachStep": 0.2,
+    "trayStandoff": 0.4,
+    "headClear": 0.14,
+    "ticketShot": {
+      "x": -0.62,
+      "y": 0.24
+    }
+  }
+}

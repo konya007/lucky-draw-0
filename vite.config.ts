@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /**
@@ -38,7 +38,14 @@ function audioFiles(): Plugin {
   }
 }
 
+const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string; author?: string | { name?: string } }
+const author = typeof pkg.author === 'string' ? pkg.author.replace(/s*[<(].*$/, '') : (pkg.author?.name ?? '')
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_AUTHOR__: JSON.stringify(author),
+  },
   // GitHub Pages project sites live at https://<owner>.github.io/<repo>/, so the deploy
   // workflow passes VITE_BASE_PATH=/<repo>/. Local dev/build keeps the root.
   base: process.env.VITE_BASE_PATH || '/',

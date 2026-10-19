@@ -1,0 +1,87 @@
+{
+  "$schema": "../model.schema.json",
+  "id": "mrbeast",
+  "name": "MrBeast",
+  "order": 2,
+  "author": "Sketchfab: \"MrBeast (Fortnite)\"",
+  "license": "Per the author's license on Sketchfab",
+  "description": "Unreal mannequin skeleton, 3 skins (duplicate skeletons kept in sync), real hands with finger joints.",
+  "files": {
+    "model": "host.glb"
+  },
+  "voices": {},
+  "height": 1.75,
+  "materials": "lit",
+  "bones": {
+    "hips": "pelvis",
+    "spine": "spine_02",
+    "chest": "spine_04",
+    "neck": "neck_01",
+    "head": "head",
+    "lArm": "upperarm_l",
+    "lElbow": "lowerarm_l",
+    "lWrist": "hand_l",
+    "rArm": "upperarm_r",
+    "rElbow": "lowerarm_r",
+    "rWrist": "hand_r",
+    "lLeg": "thigh_l",
+    "lKnee": "calf_l",
+    "lAnkle": "foot_l",
+    "lToe": "ball_l",
+    "rLeg": "thigh_r",
+    "rKnee": "calf_r",
+    "rAnkle": "foot_r",
+    "rToe": "ball_r",
+    "lMid": "middle_01_l",
+    "rMid": "middle_01_r"
+  },
+  "palmBones": {
+    "L": {
+      "index": "index_metacarpal_l",
+      "pinky": "pinky_metacarpal_l"
+    },
+    "R": {
+      "index": "index_metacarpal_r",
+      "pinky": "pinky_metacarpal_r"
+    }
+  },
+  "springs": [
+    {
+      "match": "^dyn_hood",
+      "gain": 0.8
+    },
+    {
+      "match": "^(cape|dyn_megaphone)$",
+      "gain": 0.7
+    },
+    {
+      "match": "^dyn_shoe_back_[lr]$",
+      "gain": 0.4
+    }
+  ],
+  "hands": {
+    "match": "^(hand|thumb|index|middle|ring|pinky)_",
+    "left": "_l$",
+    "right": "_r$"
+  },
+  "motion": {
+    "hop": 0.055,
+    "armRest": {
+      "out": 0.05,
+      "hang": 0.82,
+      "forward": 0.06
+    },
+    "handReach": 0.5,
+    "hold": {
+      "ballScale": 1.25,
+      "lift": 0.025
+    },
+    "ticketScale": 1.05,
+    "clapHalfGap": 0.07,
+    "pickup": {
+      "lean": 0.75,
+      "crouch": 0.2
+    },
+    "carryHalfWidth": 0.21
+  }
+}

@@ -1,8 +1,7 @@
 import { cryptoInt } from './random'
 
-const HO = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Phan', 'Vũ', 'Võ', 'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương', 'Lý']
-const DEM = ['Văn', 'Thị', 'Minh', 'Ngọc', 'Hoàng', 'Thanh', 'Quốc', 'Gia', 'Bảo', 'Thu', 'Đức', 'Khánh', 'Anh', 'Hải']
-const TEN = ['An', 'Bình', 'Châu', 'Dũng', 'Giang', 'Hà', 'Hiếu', 'Huy', 'Khoa', 'Lan', 'Linh', 'Long', 'Mai', 'Minh', 'Nam', 'Ngân', 'Nhi', 'Phúc', 'Quân', 'Quyên', 'Sơn', 'Tâm', 'Thảo', 'Trang', 'Trí', 'Tú', 'Vy', 'Yến']
+const FIRST = ['Alex', 'Jamie', 'Sam', 'Taylor', 'Jordan', 'Morgan', 'Casey', 'Riley', 'Avery', 'Quinn', 'Drew', 'Harper', 'Emery', 'Rowan', 'Skyler', 'Parker', 'Reese', 'Logan', 'Elliot', 'Hayden', 'Noah', 'Mia', 'Liam', 'Emma', 'Lucas', 'Ava', 'Ethan', 'Chloe']
+const LAST = ['Carter', 'Nguyen', 'Lee', 'Patel', 'Smith', 'Garcia', 'Kim', 'Brown', 'Tanaka', 'Silva', 'Muller', 'Rossi', 'Cohen', 'Novak', 'Walsh', 'Khan']
 const pick = <T,>(a: readonly T[]) => a[cryptoInt(a.length)]
 
 /**
@@ -13,13 +12,13 @@ export function sampleEntries(count = 30): string {
   const lines: string[] = []
   const used = new Set<string>()
   for (let i = 0; lines.length < count && i < count * 20; i++) {
-    const name = `${pick(HO)} ${pick(DEM)} ${pick(TEN)}`
-    const mssv = `${pick(['22', '23', '24'])}${String(51000000 + cryptoInt(99999999 - 51000000)).padStart(8, '0')}`
-    if (used.has(mssv)) continue
-    used.add(mssv)
+    const name = `${pick(FIRST)} ${pick(LAST)}`
+    const id = `${pick(['22', '23', '24'])}${String(51000000 + cryptoInt(99999999 - 51000000)).padStart(8, '0')}`
+    if (used.has(id)) continue
+    used.add(id)
     const n = lines.length
-    const prize = n === 0 ? 'Giải Nhất' : n <= 2 ? 'Giải Nhì' : n <= 5 ? 'Giải Ba' : 'Giải Khuyến khích'
-    lines.push(`${name} | ${mssv} | ${prize}`)
+    const prize = n === 0 ? 'First prize' : n <= 2 ? 'Second prize' : n <= 5 ? 'Third prize' : 'Consolation prize'
+    lines.push(`${name} | ${id} | ${prize}`)
   }
   return lines.join('\n')
 }

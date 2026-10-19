@@ -1,0 +1,87 @@
+{
+  "$schema": "../model.schema.json",
+  "id": "my-model",
+  "name": "My character",
+  "order": 10,
+  "author": "Your name",
+  "license": "CC-BY-4.0",
+  "source": "https://link-to-the-original-model",
+  "description": "Short description: skeleton style, features.",
+  "files": {
+    "model": "host.glb",
+    "thumbnail": "thumbnail.webp"
+  },
+  "voices": {
+    "voiceStart": "voice/start.mp3",
+    "voiceCongrats": "voice/congrats.mp3"
+  },
+  "height": 1.6,
+  "materials": "lit",
+  "centreOn": "bounds",
+  "useClips": false,
+  "bones": {
+    "hips": "Hips",
+    "spine": "Spine",
+    "chest": "Chest",
+    "neck": "Neck",
+    "head": "Head",
+    "lArm": "LeftArm",
+    "lElbow": "LeftForeArm",
+    "lWrist": "LeftHand",
+    "rArm": "RightArm",
+    "rElbow": "RightForeArm",
+    "rWrist": "RightHand",
+    "lLeg": "LeftUpLeg",
+    "lKnee": "LeftLeg",
+    "lAnkle": "LeftFoot",
+    "lToe": "LeftToeBase",
+    "rLeg": "RightUpLeg",
+    "rKnee": "RightLeg",
+    "rAnkle": "RightFoot",
+    "rToe": "RightToeBase",
+    "lMid": "LeftHandMiddle1",
+    "rMid": "RightHandMiddle1"
+  },
+  "palmBones": {
+    "L": {
+      "index": "LeftHandIndex1",
+      "pinky": "LeftHandPinky1"
+    },
+    "R": {
+      "index": "RightHandIndex1",
+      "pinky": "RightHandPinky1"
+    }
+  },
+  "springs": [
+    {
+      "match": "^Hair",
+      "gain": 0.8
+    }
+  ],
+  "hands": {
+    "match": "Hand",
+    "left": "^Left",
+    "right": "^Right"
+  },
+  "motion": {
+    "hop": 0.06,
+    "armRest": {
+      "out": 0.06,
+      "hang": 0.8,
+      "forward": 0.06
+    },
+    "handReach": 0.5,
+    "hold": {
+      "ballScale": 1.3,
+      "lift": 0.03
+    },
+    "ticketScale": 1.1,
+    "clapHalfGap": 0.06,
+    "pickup": {
+      "lean": 0.6,
+      "crouch": 0.12
+    },
+    "carryHalfWidth": 0.21,
+    "carryForward": 0.36
+  }
+}

@@ -8,6 +8,8 @@ import { StageText } from '../ui/StageText'
 import { LoadingBar } from '../ui/LoadingBar'
 import { SpeedToggle } from '../ui/SpeedToggle'
 import { SettingsPanel } from '../ui/SettingsPanel'
+import { Onboarding } from '../ui/Onboarding'
+import { VersionTag } from '../ui/VersionTag'
 import { audio } from '../audio/audioManager'
 import { director } from '../director/Director'
 
@@ -78,7 +80,7 @@ export function App() {
       <SpeedToggle />
       {paused && (
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="font-serif text-sm tracking-[0.5em] text-paper/70 uppercase">Tạm dừng</div>
+          <div className="font-serif text-sm tracking-[0.5em] text-paper/70 uppercase">Paused</div>
         </div>
       )}
       <HomeScreen />
@@ -87,6 +89,8 @@ export function App() {
       <HistoryOverlay />
       <SettingsPanel />
       <LoadingBar />
+      <VersionTag />
+      <Onboarding />
     </div>
   )
 }

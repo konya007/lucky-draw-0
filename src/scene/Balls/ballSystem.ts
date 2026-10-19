@@ -33,7 +33,6 @@ export interface Ball {
   flash: number
 }
 
-// ---- drum solver constants ----
 const G = 9.81
 const R_IN = CAGE.radius - BALL_RADIUS // centre of a ball touching the wall
 const D2 = (2 * BALL_RADIUS) ** 2
@@ -190,7 +189,6 @@ class BallSystem {
     b.quat.set(r.x, r.y, r.z, r.w)
   }
 
-  // ------------------------------------------------------------------ per frame
   update(dtRaw: number) {
     const dt = Math.min(dtRaw, 1 / 30) * clock.speed
     // drum angular speed from its actual motion (covers spins, taps and rocking alike)

@@ -68,7 +68,6 @@ export interface Win {
 interface GameState {
   phase: Phase
   hostState: HostState
-  // ---- persisted data ----
   text: string
   title: string
   removeWinners: boolean
@@ -77,7 +76,6 @@ interface GameState {
   absent: Win[]
   /** Entries still in the draw pool. */
   pool: Entry[]
-  // ---- runtime ----
   current: Win | null
   sceneReady: boolean
   loadProgress: number
@@ -86,7 +84,7 @@ interface GameState {
   historyOpen: boolean
   /** first-time "drag the crank" line visible */
   hint: boolean
-  /** the list editor is shown (after "Bắt đầu quay" on the home screen) */
+  /** the list editor is shown (after "Start the draw" on the home screen) */
   editorOpen: boolean
   /** display mode: mask the middle of ID-like numbers everywhere on screen (data stays intact) */
   maskIds: boolean

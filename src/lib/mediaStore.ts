@@ -24,7 +24,7 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+export async function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
     const req = fn(db.transaction(STORE, mode).objectStore(STORE))
@@ -37,9 +37,11 @@ interface MediaState {
   backstageUrl: string | null
   backstageName: string | null
   musicName: string | null
+  /** object URL of the uploaded music (for previews) */
+  musicUrl: string | null
 }
 
-export const useMedia = create<MediaState>(() => ({ backstageUrl: null, backstageName: null, musicName: null }))
+export const useMedia = create<MediaState>(() => ({ backstageUrl: null, backstageName: null, musicName: null, musicUrl: null }))
 
 function apply(kind: MediaKind, rec: MediaRecord | undefined) {
   if (kind === 'backstage') {
@@ -47,7 +49,9 @@ function apply(kind: MediaKind, rec: MediaRecord | undefined) {
     if (old) URL.revokeObjectURL(old)
     useMedia.setState({ backstageUrl: rec ? URL.createObjectURL(rec.blob) : null, backstageName: rec?.name ?? null })
   } else {
-    useMedia.setState({ musicName: rec?.name ?? null })
+    const old = useMedia.getState().musicUrl
+    if (old) URL.revokeObjectURL(old)
+    useMedia.setState({ musicName: rec?.name ?? null, musicUrl: rec ? URL.createObjectURL(rec.blob) : null })
     audio.setCustomMusic(rec?.blob ?? null)
   }
 }

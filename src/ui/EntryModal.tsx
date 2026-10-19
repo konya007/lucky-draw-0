@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useGameStore, useShown } from '../store/useGameStore'
 import { sampleEntries } from '../lib/sampleData'
-import { RIGS } from '../scene/Host/rigs'
+import { useRig, useRigs } from '../scene/Host/rigs'
 import { parseEntries, tools, MAX_BALLS } from '../lib/parseEntries'
 import { shuffle } from '../lib/shuffle'
 import { director } from '../director/Director'
@@ -39,7 +39,9 @@ export function EntryModal() {
   const hostModel = useGameStore((s) => s.hostModel)
   const show = useShown()
   const [tab, setTab] = useState<'input' | 'preview'>('input')
-  const rigLabel = RIGS.find((r) => r.id === hostModel)?.label ?? ''
+  const rigs = useRigs((s) => s.rigs)
+  const rig = useRig(hostModel)
+  const rigLabel = rig.label
   const visible = phase === 'EDITING' && editorOpen
   const [mounted, setMounted] = useState(visible)
 
@@ -98,11 +100,11 @@ export function EntryModal() {
         {/* header */}
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-brass/25 px-5 pt-5 pb-4 sm:px-8">
           <div>
-            <div className="text-[10px] tracking-[0.45em] text-muted uppercase">Đêm gala · bốc thăm</div>
+            <div className="text-[10px] tracking-[0.45em] text-muted uppercase">Gala night · lucky draw</div>
             <h1 className="mt-1 font-serif text-3xl tracking-[0.12em] text-paper sm:text-4xl">Grand Draw</h1>
           </div>
           <label className="flex min-w-[16rem] flex-1 flex-col gap-1 sm:max-w-md">
-            <span className="text-[10px] tracking-[0.3em] text-muted uppercase">Tiêu đề sự kiện</span>
+            <span className="text-[10px] tracking-[0.3em] text-muted uppercase">Event title</span>
             <input
               value={title}
               onChange={(e) => set({ title: e.target.value })}
@@ -117,36 +119,36 @@ export function EntryModal() {
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-brass/15 px-5 py-3 sm:px-8">
           <ListMenu
             items={[
-              { label: 'Thêm dữ liệu mẫu', onClick: () => apply((t) => (t.trim() ? t.trimEnd() + '\n' : '') + sampleEntries(30)) },
-              { label: 'Nhập file .txt / .csv', onClick: () => fileRef.current?.click() },
+              { label: 'Add sample data', onClick: () => apply((t) => (t.trim() ? t.trimEnd() + '\n' : '') + sampleEntries(30)) },
+              { label: 'Import .txt / .csv', onClick: () => fileRef.current?.click() },
               { sep: true },
-              { label: 'Xáo trộn', onClick: () => apply((t) => shuffle(t.split(/\r?\n/).filter((l) => l.trim())).join('\n')) },
-              { label: 'Sắp xếp A → Z', onClick: () => apply(tools.sortAZ) },
-              { label: 'Đảo ngược', onClick: () => apply(tools.reverse) },
-              { label: 'Xóa dòng trùng', onClick: () => apply(tools.dedupe) },
-              { label: 'Xóa dòng trống', onClick: () => apply(tools.removeEmpty) },
+              { label: 'Shuffle', onClick: () => apply((t) => shuffle(t.split(/\r?\n/).filter((l) => l.trim())).join('\n')) },
+              { label: 'Sort A → Z', onClick: () => apply(tools.sortAZ) },
+              { label: 'Reverse', onClick: () => apply(tools.reverse) },
+              { label: 'Remove duplicates', onClick: () => apply(tools.dedupe) },
+              { label: 'Remove empty lines', onClick: () => apply(tools.removeEmpty) },
               { sep: true },
-              { label: confirmClear ? 'Bấm lần nữa để xóa hết' : 'Xóa hết danh sách', danger: true, keepOpen: !confirmClear, onClick: clearAll },
+              { label: confirmClear ? 'Click again to clear all' : 'Clear the whole list', danger: true, keepOpen: !confirmClear, onClick: clearAll },
             ]}
           />
           <input ref={fileRef} type="file" accept=".txt,.csv,text/plain,text/csv" className="hidden" onChange={onFile} />
           <label className="flex items-center gap-2 text-[11px] tracking-[0.18em] text-paper/80 uppercase">
-            Nhân vật
+            Character
             <select
-              value={hostModel}
+              value={rig.id}
               onChange={(e) => set({ hostModel: e.target.value })}
               className="rounded-sm border border-brass/40 bg-ink px-2 py-1 text-[12px] tracking-wide text-paper normal-case outline-none hover:border-brass-hi focus:border-brass-hi"
             >
-              {RIGS.map((r) => (
+              {rigs.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.label}
                 </option>
               ))}
             </select>
           </label>
-          <Switch on={maskOn} onChange={() => set({ maskIds: !maskOn })} label="Che mã số" hint="225xxxx127" />
+          <Switch on={maskOn} onChange={() => set({ maskIds: !maskOn })} label="Mask IDs" hint="225xxxx127" />
           <label className="flex items-center gap-2 text-[11px] tracking-[0.18em] text-paper/80 uppercase">
-            Số người trúng
+            Winners
             <input
               type="number"
               min={1}
@@ -158,11 +160,11 @@ export function EntryModal() {
                 set({ winnerLimit: Number.isFinite(v) && v > 0 ? v : null })
               }}
               className="w-16 border-b border-brass/40 bg-transparent py-0.5 text-center font-mono text-sm text-paper outline-none placeholder:text-muted focus:border-brass-hi"
-              title="Để trống: quay đến khi hết danh sách. Có số: đủ số người trúng thì hạ màn."
+              title="Empty: draw until the list runs out. A number: the curtain falls once that many people have won."
             />
           </label>
           <div className="ml-auto">
-            <Switch on={removeWinners} onChange={() => set({ removeWinners: !removeWinners })} label="Loại người đã trúng" />
+            <Switch on={removeWinners} onChange={() => set({ removeWinners: !removeWinners })} label="Exclude past winners" />
           </div>
         </div>
 
@@ -180,19 +182,19 @@ export function EntryModal() {
                     onClick={() => setTab(t)}
                     className={`px-4 py-1.5 text-[11px] tracking-[0.18em] uppercase transition-colors ${tab === t ? 'bg-brass/70 text-ink' : 'text-paper/85 hover:bg-brass/15'}`}
                   >
-                    {t === 'input' ? 'Nhập' : `Xem trước (${stats.total})`}
+                    {t === 'input' ? 'Input' : `Preview (${stats.total})`}
                   </button>
                 ))}
               </div>
               <div className="ml-auto flex flex-wrap gap-3 text-[10px] tracking-[0.15em] text-muted uppercase">
                 <span>
-                  Trùng <b className="font-serif text-sm text-paper">{stats.duplicates}</b>
+                  Duplicates <b className="font-serif text-sm text-paper">{stats.duplicates}</b>
                 </span>
                 <span>
-                  Trống bỏ qua <b className="font-serif text-sm text-paper">{stats.empty}</b>
+                  Empty skipped <b className="font-serif text-sm text-paper">{stats.empty}</b>
                 </span>
                 <span>
-                  Quả cầu (≤{MAX_BALLS}) <b className="font-serif text-sm text-brass-hi">{stats.balls}</b>
+                  Balls (≤{MAX_BALLS}) <b className="font-serif text-sm text-brass-hi">{stats.balls}</b>
                 </span>
               </div>
             </div>
@@ -202,13 +204,13 @@ export function EntryModal() {
                   value={text}
                   onChange={(e) => set({ text: e.target.value })}
                   spellCheck={false}
-                  placeholder={'Mỗi dòng một mục. Có thể dùng `Tên | Giải thưởng | Ghi chú`\n\nNguyễn Văn An | Giải Nhất | Phòng Kỹ thuật\nTrần Thị Bình | Giải Nhì\nLê Hoàng Cường'}
+                  placeholder={'One entry per line. You can use `Name | Prize | Note`\n\nAlex Carter | First prize | Engineering\nJamie Lee | Second prize\nSam Patel'}
                   className="scroll-thin absolute inset-0 h-full w-full resize-none rounded border border-brass/25 bg-black/50 p-4 font-mono text-[13px] leading-[1.7] text-paper outline-none placeholder:text-muted/45 focus:border-brass/60"
                 />
               ) : (
                 <div onScroll={(e) => setScroll(e.currentTarget.scrollTop)} className="scroll-thin absolute inset-0 overflow-y-auto rounded border border-brass/15 bg-black/30">
                   {entries.length === 0 ? (
-                    <div className="flex h-full items-center justify-center p-6 text-center font-serif text-muted italic">Danh sách xem trước sẽ hiện ở đây</div>
+                    <div className="flex h-full items-center justify-center p-6 text-center font-serif text-muted italic">The preview of your list shows up here</div>
                   ) : (
                     <div style={{ height: entries.length * ROW }} className="relative">
                       {entries.slice(first, last).map((e, k) => {
@@ -232,8 +234,8 @@ export function EntryModal() {
             </div>
             {(historyCount > 0 || absentCount > 0) && (
               <div className="mt-2 text-[11px] tracking-wide text-muted">
-                {historyCount > 0 && <>{historyCount} lượt đã quay trước đó{removeWinners ? ', người đã trúng sẽ được loại khỏi lượt mới' : ''}. </>}
-                {absentCount > 0 && <>{absentCount} người vắng mặt không được quay lại.</>}
+                {historyCount > 0 && <>{historyCount} earlier {historyCount === 1 ? 'draw' : 'draws'}{removeWinners ? '; past winners are left out of the new draw' : ''}. </>}
+                {absentCount > 0 && <>{absentCount} absent {absentCount === 1 ? 'person is' : 'people are'} not drawn again.</>}
               </div>
             )}
           </div>
@@ -255,7 +257,7 @@ export function EntryModal() {
             className="relative ml-auto overflow-hidden rounded-sm border border-brass-hi/70 bg-gradient-to-b from-[#d6a955] to-[#8a6223] px-8 py-3.5 font-serif text-base tracking-[0.3em] text-ink uppercase shadow-[0_0_40px_rgba(184,137,59,0.35)] transition-all hover:shadow-[0_0_60px_rgba(242,210,138,0.55)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none sm:text-lg"
           >
             {!ready && <span className="absolute inset-y-0 left-0 bg-white/25 transition-[width]" style={{ width: `${progress}%` }} />}
-            <span className="relative">{ready ? 'Tiến hành quay số' : `Đang dựng sân khấu… ${Math.round(progress)}%`}</span>
+            <span className="relative">{ready ? 'Run the draw' : `Setting the stage… ${Math.round(progress)}%`}</span>
           </button>
         </div>
       </div>
@@ -265,7 +267,7 @@ export function EntryModal() {
 
 type MenuItem = { sep: true } | { label: string; onClick: () => void; danger?: boolean; keepOpen?: boolean; sep?: false }
 
-/** "Thao tác ▾": all list tools in one dropdown. */
+/** "List tools ▾": all list tools in one dropdown. */
 function ListMenu({ items }: { items: MenuItem[] }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -283,7 +285,7 @@ function ListMenu({ items }: { items: MenuItem[] }) {
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-2 rounded-sm border px-3 py-1.5 text-[11px] tracking-[0.16em] uppercase transition-colors ${open ? 'border-brass-hi text-brass-hi' : 'border-brass/40 text-paper/85 hover:border-brass-hi hover:text-brass-hi'}`}
       >
-        Thao tác danh sách <span className={`transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+        List tools <span className={`transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
       </button>
       {open && (
         <div role="menu" className="absolute top-full left-0 z-10 mt-1 min-w-[15rem] rounded-sm border border-brass/40 bg-ink/95 py-1 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
@@ -339,7 +341,7 @@ function ResultsButtons() {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" onClick={() => set({ historyOpen: true })} className={`${small} border-brass/40 text-paper/85 hover:border-brass-hi hover:text-brass-hi`}>
-        Người đã trúng ({count})
+        Winners ({count})
       </button>
       <button
         type="button"
@@ -351,7 +353,7 @@ function ResultsButtons() {
         }}
         className={`${small} ${confirm ? 'border-red-400/80 text-red-200' : 'border-brass/40 text-paper/85 hover:border-red-300 hover:text-red-200'}`}
       >
-        {confirm ? 'Bấm lần nữa để xóa' : 'Xóa kết quả'}
+        {confirm ? 'Click again to clear' : 'Clear results'}
       </button>
     </div>
   )

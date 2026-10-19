@@ -6,7 +6,7 @@ import { audio } from '../../audio/audioManager'
 import { useGameStore, type HostState } from '../../store/useGameStore'
 import { CAGE, CRANK, PROPS, TRAY } from '../layout'
 import type { BoneKey, HostRig, Side } from './rigs/HostRig'
-import { RIGS } from './rigs'
+import { defaultRig } from './rigs'
 
 /** The skeleton mapping lives in the active rig class (rigs/). */
 export type { BoneKey }
@@ -172,9 +172,9 @@ export class HostController {
 
   // ================================================================ setup
   /** the active character's skeleton description */
-  rig: HostRig = RIGS[0]
+  rig: HostRig = defaultRig()
 
-  bind(model: Object3D, rig: HostRig = RIGS[0]) {
+  bind(model: Object3D, rig: HostRig = defaultRig()) {
     this.rig = rig
     // a new character starts without clips (setClips adds them for rigs that have their own)
     this.mixer?.stopAllAction()
@@ -672,7 +672,7 @@ export class HostController {
     if (!this.clipDriven) {
       // 2) hips: height (crouch + walk bob), sway, twist with gait
       const ph = (this.gait / this.stride) * Math.PI * 2
-      // skip ("chân sáo"): a hop on every step — the hips rise mid-step (the stance leg reaches full
+      // skip: a hop on every step — the hips rise mid-step (the stance leg reaches full
       // length so that foot leaves the floor too) and dip a little on landing (squash)
       const stepPh = ((((ph / Math.PI) % 1) + 1) % 1)
       const hop = Math.pow(Math.sin(stepPh * Math.PI), 1.5) * this.rig.hop - Math.exp(-stepPh * 14) * 0.03

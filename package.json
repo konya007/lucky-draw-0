@@ -3,18 +3,30 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "author": {
+    "name": "Mobile Programming Club",
+    "email": "dev/mpclub@gmail.com",
+    "url": "https://www.mpclub.dev"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/konya007/lucky-draw-0.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "compress-host": "gltf-transform optimize public/3d_anime_character_girl_for_blender.glb public/host.glb --compress meshopt --texture-compress webp --texture-size 2048"
+    "compress-model": "node scripts/compress-model.mjs",
+    "start": "cd dist && python3 -m http.server 8000"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "@react-three/postprocessing": "^2.19.1",
     "@react-three/rapier": "^1.5.0",
+    "fflate": "^0.8.3",
     "gsap": "^3.15.0",
     "maath": "^0.10.8",
     "postprocessing": "^6.39.5",

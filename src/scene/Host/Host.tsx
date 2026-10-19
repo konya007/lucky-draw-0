@@ -6,10 +6,10 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { Box3, CanvasTexture, Color, DataTexture, Material, Mesh, MeshBasicMaterial, MeshToonMaterial, NearestFilter, Object3D, RedFormat, SkinnedMesh, Texture, Vector3 } from 'three'
 import { SkeletonUtils } from 'three-stdlib'
 import { host } from './useHostAnimator'
-import { rigById, RIGS, type HostRig } from './rigs'
+import { useRig, useRigs, type HostRig, type PackRig } from './rigs'
 import { useGameStore } from '../../store/useGameStore'
 import { fixZeroNormals } from '../../lib/safeNormals'
-import { assetUrl } from '../../lib/assetUrl'
+
 import { director } from '../../director/Director'
 import { useQuality } from '../../quality/qualityPresets'
 
@@ -59,7 +59,10 @@ function toToon(src: Material, ramp: Texture): MeshToonMaterial {
  * boundary so switching never blanks the rest of the stage.
  */
 export function Host() {
-  const rig = rigById(useGameStore((s) => s.hostModel))
+  const rig = useRig(useGameStore((s) => s.hostModel))
+  // the packs are small (≈0.5 MB each): preload them all so switching in the editor is instant
+  const rigs = useRigs((s) => s.rigs)
+  useEffect(() => rigs.forEach((r) => useGLTF.preload(r.url, false, true)), [rigs])
   return (
     <>
       {/* host.root is one shared object for every character: mounted once here, never re-keyed.
@@ -146,8 +149,8 @@ export function prepareHostModel(source: Object3D, rig: HostRig): Object3D {
 }
 
 /** Loads one rig's GLB, normalizes scale/facing, adapts its materials and binds the animator. */
-function HostModel({ rig }: { rig: HostRig }) {
-  const gltf = useGLTF(assetUrl(rig.url), false, true)
+function HostModel({ rig }: { rig: PackRig }) {
+  const gltf = useGLTF(rig.url, false, true)
   const camera = useThree((s) => s.camera)
   const preset = useQuality()
 
@@ -159,17 +162,13 @@ function HostModel({ rig }: { rig: HostRig }) {
     if (rig.useClips && gltf.animations.length) host.setClips(gltf.animations, model)
     host.camera = camera
     if (import.meta.env.DEV) logRig(model)
-    // optional retargeted clips
+    // optional extra clips shipped in the pack (files.animations in info.json)
     let cancelled = false
-    fetch(assetUrl('host-manifest.json'))
-      .then((r) => r.json())
-      .then((m: { animations?: string | null }) => {
-        if (!m.animations || cancelled) return
-        const loader = new GLTFLoader()
-        loader.setMeshoptDecoder(MeshoptDecoder)
-        loader.load(assetUrl(m.animations), (g) => !cancelled && host.setClips(g.animations, model))
-      })
-      .catch(() => {})
+    if (rig.urls.animations) {
+      const loader = new GLTFLoader()
+      loader.setMeshoptDecoder(MeshoptDecoder)
+      loader.load(rig.urls.animations, (g) => !cancelled && host.setClips(g.animations, model))
+    }
     return () => {
       cancelled = true
     }
@@ -248,5 +247,3 @@ function logRig(model: Object3D) {
   console.info(`[host] bones=${bones.length} tris=${Math.round(tris)} (procedural animator, see src/scene/Host/HostRig.md)`)
 }
 
-// both characters are small (≈0.5 MB each): preload them so switching in the editor is instant
-for (const r of RIGS) useGLTF.preload(assetUrl(r.url), false, true)

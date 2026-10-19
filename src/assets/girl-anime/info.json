@@ -1,0 +1,57 @@
+{
+  "$schema": "../model.schema.json",
+  "id": "anime",
+  "name": "Anime Girl",
+  "order": 1,
+  "author": "Sketchfab: \"3d anime character girl for blender\"",
+  "license": "Per the author's license on Sketchfab",
+  "description": "VRoid/Unity humanoid skeleton (185 joints), unlit materials rendered as toon. Hair, ribbons and tail on springs; wings flap; the skirt avoids the legs.",
+  "files": {
+    "model": "host.glb"
+  },
+  "voices": {},
+  "height": 1.6,
+  "materials": "toon",
+  "bones": {
+    "hips": "Hips",
+    "spine": "Spine",
+    "chest": "Chest",
+    "neck": "Neck",
+    "head": "Head",
+    "lArm": "Left_arm",
+    "lElbow": "Left_elbow",
+    "lWrist": "Left_wrist",
+    "rArm": "Right_arm",
+    "rElbow": "Right_elbow",
+    "rWrist": "Right_wrist",
+    "lLeg": "Left_leg",
+    "lKnee": "Left_knee",
+    "lAnkle": "Left_ankle",
+    "lToe": "Left_toe",
+    "rLeg": "Right_leg",
+    "rKnee": "Right_knee",
+    "rAnkle": "Right_ankle",
+    "rToe": "Right_toe",
+    "lMid": "MiddleFinger1_L",
+    "rMid": "MiddleFinger1_R"
+  },
+  "springs": [
+    {
+      "match": "^(Hair_Side01_[LR]|Hair_Side_Ribon01_[LR]|Hair_Front_00[12]|Tail_02|Front_Ribon_01_[LR])$",
+      "gain": 1
+    }
+  ],
+  "wings": {
+    "left": "^Wing02_L$",
+    "right": "^Wing02_R$"
+  },
+  "skirtRoots": "^Skirt_0_[0-9]+$",
+  "hands": {
+    "match": "wrist|Finger|Thumb|Hand_Ribon",
+    "left": "Left|_L",
+    "right": "Right|_R"
+  },
+  "motion": {
+    "carryHalfWidth": 0.22
+  }
+}

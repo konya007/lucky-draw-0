@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "GRAND DRAW model pack (info.json)",
+  "type": "object",
+  "required": ["id", "name", "bones", "hands"],
+  "definitions": {
+    "boneName": { "type": "string", "description": "Base bone name as three.js sees it: spaces → _, dots and colons removed, a trailing _<number> export index dropped (\"hand.L\" → \"handL\", \"mixamorig:Hips\" → \"mixamorigHips\", \"Left arm_20\" → \"Left_arm\")." },
+    "regex": { "type": "string", "format": "regex", "description": "JavaScript RegExp source tested against base bone names." },
+    "xyz": { "type": "object" }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[\\w-]+$", "description": "Stable id saved as the player's choice. Must be unique." },
+    "name": { "type": "string", "description": "Name shown in the character picker." },
+    "order": { "type": "number", "description": "Sort order (lower first). The lowest built-in pack is the default host." },
+    "author": { "type": "string" },
+    "license": { "type": "string" },
+    "source": { "type": "string", "description": "Where the model comes from (URL)." },
+    "description": { "type": "string" },
+    "files": {
+      "type": "object",
+      "properties": {
+        "model": { "type": "string", "default": "host.glb", "description": "Character GLB (compressed: meshopt + webp textures recommended)." },
+        "animations": { "type": "string", "description": "Optional GLB holding extra clips (Idle, Walk/Walking) for the same skeleton." },
+        "thumbnail": { "type": "string", "description": "Optional picker image." }
+      }
+    },
+    "voices": {
+      "type": "object",
+      "properties": {
+        "voiceStart": { "type": "string", "description": "Played when the host greets the audience." },
+        "voiceCongrats": { "type": "string", "description": "Played when the winning ticket is shown." }
+      }
+    },
+    "height": { "type": "number", "default": 1.6, "description": "Standing height on stage in metres (the cage is ~1.45 m tall)." },
+    "materials": { "enum": ["toon", "lit"], "default": "lit", "description": "toon: unlit anime export converted to toon shading. lit: keep the GLB's PBR materials." },
+    "centreOn": { "enum": ["bounds", "hips"], "default": "bounds", "description": "hips: for big tails/capes that would shift the bounding-box centre." },
+    "useClips": { "type": "boolean", "default": false, "description": "Play the GLB's own Idle / Walk clips for body and legs; arms, gaze and lean stay procedural on top." },
+    "bones": {
+      "type": "object",
+      "description": "Logical bone → base bone name. lMid/rMid = palm attach point (middle finger base, or the hand bone for mittens). lToe/rToe can repeat the ankle bone if there are no toes.",
+      "required": ["hips", "spine", "chest", "neck", "head", "lArm", "lElbow", "lWrist", "rArm", "rElbow", "rWrist", "lLeg", "lKnee", "lAnkle", "lToe", "rLeg", "rKnee", "rAnkle", "rToe", "lMid", "rMid"],
+      "additionalProperties": { "$ref": "#/definitions/boneName" }
+    },
+    "palmBones": {
+      "description": "Index and pinky knuckle bones per hand. With them the palm direction is measured each frame (palm-up holding, palms facing to clap). null for mitten hands.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["L", "R"],
+          "properties": {
+            "L": { "type": "object", "required": ["index", "pinky"] },
+            "R": { "type": "object", "required": ["index", "pinky"] }
+          }
+        }
+      ]
+    },
+    "springs": {
+      "type": "array",
+      "description": "Secondary-motion bones (hair, ears, ribbons, hood…). First matching rule wins; gain 0..1.",
+      "items": { "type": "object", "required": ["match", "gain"], "properties": { "match": { "$ref": "#/definitions/regex" }, "gain": { "type": "number" } } }
+    },
+    "wings": { "type": "object", "required": ["left", "right"], "properties": { "left": { "$ref": "#/definitions/regex" }, "right": { "$ref": "#/definitions/regex" } } },
+    "skirtRoots": { "$ref": "#/definitions/regex", "description": "Root bones of skirt/coat strands, pushed by the thighs so legs never cut through." },
+    "hands": {
+      "type": "object",
+      "required": ["match", "left", "right"],
+      "description": "Which bones form the visible hand (wrist + fingers): 'match' selects them, 'left'/'right' decide the side.",
+      "properties": { "match": { "$ref": "#/definitions/regex" }, "left": { "$ref": "#/definitions/regex" }, "right": { "$ref": "#/definitions/regex" } }
+    },
+    "motion": {
+      "type": "object",
+      "description": "Fine-tuning of the shared animation. Every field is optional.",
+      "properties": {
+        "hop": { "type": "number", "description": "Skip height per step (m)." },
+        "armRest": { "type": "object", "description": "{ out, hang, forward }: relaxed hands offset sideways (m), hang as a fraction of arm reach (1 = straight down), forward (m)." },
+        "handReach": { "type": "number", "description": "Grip point as a fraction of the mesh past the wrist: 1 for mittens, ~0.5 for real hands." },
+        "hold": { "type": "object", "description": "{ ballScale, lift }: ball display scale in the hand, lift above the palm (m)." },
+        "ticketScale": { "type": "number" },
+        "clapHalfGap": { "type": "number", "description": "Half the gap between the grip points when the palms meet (m)." },
+        "pickup": { "type": "object", "description": "{ lean, crouch }: forward lean (rad) and knee crouch (m) when picking the ball off the tray." },
+        "carryHalfWidth": { "type": "number", "description": "Hands' distance from the centre line carrying the ballot box (m)." },
+        "carryForward": { "type": "number", "description": "How far in front of the body the box is carried (m)." },
+        "crankHop": { "type": "number", "description": "Short characters jump this high while cranking (m)." },
+        "reachStep": { "type": "number", "description": "Short arms step this much closer to the crank knob (m)." },
+        "trayStandoff": { "type": "number", "description": "Stand further right of the tray mark (big heads) (m)." },
+        "headClear": { "type": "number", "description": "Big heads: hold presented things lower and wider (m)." },
+        "ticketShot": { "type": "object", "description": "{ x, y }: slide the ticket close-up so the head stays out of frame (m)." }
+      }
+    }
+  }
+}

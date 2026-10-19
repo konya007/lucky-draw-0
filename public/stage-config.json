@@ -9,7 +9,13 @@
     "position": [0, 3.0, -3.15],
     "brightness": 0.35,
     "tint": "#ffffff",
-    "fit": "cover"
+    "fit": "cover",
+    "led": {
+      "_help": "LED-wall look. glow: 0 = flat print … 1 = bright glowing screen (highlights bloom, soft halo and light spill on the floor). grid: visible LED dots 0..1. pitch: LEDs per metre.",
+      "glow": 0.6,
+      "grid": 0.35,
+      "pitch": 48
+    }
   },
 
   "propLights": {

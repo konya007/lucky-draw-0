@@ -3,18 +3,17 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer, useGLTF } from '@react-three/drei'
 import { Group, Quaternion, Vector3 } from 'three'
 import { useGameStore } from '../store/useGameStore'
-import { rigById, type HostRig } from '../scene/Host/rigs'
+import { useRig, type PackRig } from '../scene/Host/rigs'
 import { HostController } from '../scene/Host/useHostAnimator'
 import { prepareHostModel } from '../scene/Host/Host'
 import { BallotBox, ballot, BALLOT_SIZE } from '../scene/Props/BallotBox'
-import { assetUrl } from '../lib/assetUrl'
 
 const _mid = new Vector3()
 const _down = new Vector3()
 
 /** The chosen character, idling with the ballot box, gently turning to show off. */
-function PreviewHost({ rig }: { rig: HostRig }) {
-  const gltf = useGLTF(assetUrl(rig.url), false, true)
+function PreviewHost({ rig }: { rig: PackRig }) {
+  const gltf = useGLTF(rig.url, false, true)
   const camera = useThree((s) => s.camera)
   const ctl = useMemo(() => new HostController(), [])
   const model = useMemo(() => prepareHostModel(gltf.scene, rig), [gltf, rig])
@@ -61,7 +60,7 @@ function PreviewHost({ rig }: { rig: HostRig }) {
 }
 
 function PreviewScene() {
-  const rig = rigById(useGameStore((s) => s.hostModel))
+  const rig = useRig(useGameStore((s) => s.hostModel))
   return (
     <>
       <ambientLight intensity={0.25} />
@@ -79,9 +78,9 @@ function PreviewScene() {
 }
 
 /** Small 3D stage in the list editor: the selected host holding the ballot box. */
-export default function CharacterPreview() {
+export default function CharacterPreview({ low = false }: { low?: boolean }) {
   return (
-    <Canvas dpr={[1, 1.5]} shadows camera={{ fov: 30, near: 0.05, far: 20 }} gl={{ antialias: true, alpha: true }}>
+    <Canvas dpr={low ? 0.75 : [1, 1.5]} shadows={!low} camera={{ fov: 30, near: 0.05, far: 20 }} gl={{ antialias: true, alpha: true }}>
       <PreviewScene />
     </Canvas>
   )

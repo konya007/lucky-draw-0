@@ -1,5 +1,0 @@
-{
-  "_comment": "model: the character GLB. animations: optional GLB with retargeted clips named Idle, Walking, Waving, Bow, PickUp (see README). Set to null when absent.",
-  "model": "/host.glb",
-  "animations": null
-}

@@ -81,7 +81,7 @@ class Director {
   private ticketDown: number | null = null
   private packResolve: (() => void) | null = null
   private spunOnce = false
-  /** winners drawn since "Tiến hành quay số" (for the winner limit) */
+  /** winners drawn since "Run the draw" (for the winner limit) */
   private sessionWins = 0
   private endRequested = false
   private drawn: Ball | null = null
@@ -119,7 +119,6 @@ class Director {
     this.setSpeed(double ? 8 : 3)
   }
 
-  // ============================================================= EDITING → PACKING
   async start() {
     const s = g()
     if (s.phase !== 'EDITING') return
@@ -127,6 +126,7 @@ class Director {
     this.endRequested = false
     await audio.unlock()
     audio.setLoop('music', 0.55, 2)
+    audio.setLoop('room', 0.16, 1)
     const n = s.buildPool()
     if (!n) return
     const count = ballsFor(n)
@@ -140,8 +140,6 @@ class Director {
     stage.curtainOpen = 0
     if (!this.phase('PACKING')) return
     lightDirector.cue('editing')
-
-    // the balls wait (invisible) inside the ballot box the host will carry in
     const balls = ballSystem.balls.slice(0, count)
     balls.forEach((b) => {
       b.pos.set(0, -5, 0)
@@ -152,8 +150,6 @@ class Director {
     ballot.lid = 0
     ballot.glow = 0
     ballot.scale = 1
-
-    // the host waits in front of the closed curtain holding the open ballot box
     host.place(MARKS.pack, 0)
     host.carryHand = 'L'
     this.boxGrip.two = 1
@@ -165,7 +161,6 @@ class Director {
     host.setState('idle')
     host.lookAtCamera()
     cameraDirector.setShot('packing')
-    // the follow spot picks the host out on the apron (the editing cue would fade it back to 0)
     gsap.killTweensOf(lights, 'follow,foot')
     lightDirector.followOn()
     gsap.to(lights, { foot: 0.8, duration: 0.6 })
@@ -175,8 +170,7 @@ class Director {
     const { entries } = parseEntries(s.text)
     const pool = new Set(g().pool.map((e) => e.id))
     const shown = entries.filter((e) => pool.has(e.id)).slice(0, 200)
-    // every card curls up and drops into the open box in the host's hands
-    const slot = this.project(_v2.copy(ballot.pos).setY(ballot.pos.y + BALLOT_SIZE.h))
+    const slot = this.packTarget()
     const cards = shown.map((e, i) => {
       const b = balls[i % count]
       return { text: displayed(e.cols[0] || e.raw), ball: b.i, x: slot.x + vrand(-30, 30), y: slot.y, color: `#${b.color.clone().convertLinearToSRGB().getHexString()}` }
@@ -201,6 +195,11 @@ class Director {
   }
 
   /** Overlay callback: a card reached its ball → the shell closes with a click and a glint. */
+  /** Screen position of the ballot box mouth (live, for the packing overlay). */
+  packTarget() {
+    return this.project(_v2.copy(ballot.pos).setY(ballot.pos.y + BALLOT_SIZE.h * 0.9))
+  }
+
   packArrive(i: number) {
     if (!ballSystem.balls[i]) return
     audio.play('paper', { vol: 0.25, pitch: 0.9 + Math.random() * 0.3 })
@@ -254,7 +253,7 @@ class Director {
     cameraDirector.setShot('hostBow')
     host.lookAtCamera()
     host.express('happy', 2.5)
-    audio.playVoice('voiceStart', host.rig.id, { vol: 0.85, pos: host.pos })
+    void audio.playVoice('voiceStart', host.rig, { vol: 0.85, pos: host.pos })
     await wait(0.5)
     // brings the box round to the front with both hands to open it
     host.setPose('carryBox')
@@ -764,7 +763,7 @@ class Director {
     if (!this.phase('TICKET_SHOWN')) return
     host.setState('presenting')
     stage.invited = 'ticket'
-    audio.playVoice('voiceCongrats', host.rig.id, { vol: 0.9, pos: host.pos })
+    void audio.playVoice('voiceCongrats', host.rig, { vol: 0.9, pos: host.pos })
     audio.play('applause', { vol: 0.9 })
     // audio.play('chime', { vol: 0.5 })
   }
@@ -832,7 +831,7 @@ class Director {
   /** Back to the crank, refill the drum if the pool allows, or finish. */
   private async afterDraw() {
     const s = g()
-    // the show ends when the list runs out, the winner quota is met, or "hạ màn" was asked for
+    // the show ends when the list runs out, the winner quota is met, or "curtain down" was asked for
     const limit = s.winnerLimit
     if (!s.pool.length || (limit !== null && this.sessionWins >= limit) || this.endRequested) return this.finish()
     host.setState('walking')
@@ -865,7 +864,7 @@ class Director {
 
   // ============================================================= FINISHED
   /**
-   * "Hạ màn" requested by the player: idle → end now; ticket on display → file it, then end;
+   * "Curtain down" requested by the player: idle → end now; ticket on display → file it, then end;
    * mid-draw → finish this draw first, then end.
    */
   requestEnd() {
@@ -932,6 +931,9 @@ class Director {
     // close the curtain and walk off while the editor fades in
     this.phase('EDITING')
     lightDirector.cue('editing')
+    // the list editor is quiet: music and room tone fade out until the next show
+    audio.setLoop('music', 0, 1.5)
+    audio.setLoop('room', 0, 1.5)
     audio.play('curtain', { vol: 0.7 })
     gsap.to(stage, { curtainOpen: 0, curtainWave: 0.4, duration: 2.2, ease: 'power2.inOut' })
     gsap.to(stage, { curtainWave: 0.15, duration: 2, delay: 2.2 })
