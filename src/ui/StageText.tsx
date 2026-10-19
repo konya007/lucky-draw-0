@@ -35,7 +35,7 @@ export function StageText() {
   return (
     <>
       <div className={`pointer-events-none fixed inset-x-0 top-[12vh] z-10 text-center transition-opacity duration-[1500ms] ${showTitle ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="font-serif text-[clamp(1.8rem,5vw,4.5rem)] tracking-[0.35em] text-paper/90 drop-shadow-[0_0_30px_rgba(255,220,160,0.25)]">{title || 'GRAND DRAW'}</div>
+        <div className="font-serif text-[clamp(1.8rem,5vw,4.5rem)] tracking-[0.35em] text-paper/90 drop-shadow-[0_0_30px_rgba(255,220,160,0.25)]">{title || 'LUCKY SPIN'}</div>
       </div>
       <div ref={finale} className="pointer-events-none fixed inset-0 z-10 flex flex-col items-center justify-center text-center" style={{ opacity: 0 }}>
         <div className="text-[11px] tracking-[0.6em] text-muted uppercase">{title}</div>

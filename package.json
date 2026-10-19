@@ -11,7 +11,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/konya007/lucky-draw-0.git"
+    "url": "https://github.com/mpc-ou/lucky-spin"
   },
   "scripts": {
     "dev": "vite",

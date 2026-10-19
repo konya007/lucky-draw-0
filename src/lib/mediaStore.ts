@@ -12,7 +12,7 @@ interface MediaRecord {
   at: number
 }
 
-const DB = 'grand-draw'
+const DB = 'lucky-spin'
 const STORE = 'media'
 
 function openDb(): Promise<IDBDatabase> {

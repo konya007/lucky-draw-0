@@ -36,7 +36,7 @@ export function HistoryOverlay() {
     const blob = new Blob(['﻿' + toCSV(rows())], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `grand-draw-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `lucky-spin-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }

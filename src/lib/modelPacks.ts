@@ -97,7 +97,7 @@ export function downloadTemplate() {
   })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([zip], { type: 'application/zip' }))
-  a.download = 'grand-draw-model-template.zip'
+  a.download = 'lucky-spin-model-template.zip'
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }

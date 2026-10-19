@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
-  "title": "GRAND DRAW model pack (info.json)",
+  "title": "Lucky Spin model pack (info.json)",
   "type": "object",
   "required": ["id", "name", "bones", "hands"],
   "definitions": {

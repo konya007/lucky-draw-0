@@ -46,7 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
         }),
     }),
     {
-      name: 'grand-draw:settings',
+      name: 'lucky-spin:settings',
       partialize: (s) => ({ master: s.master, music: s.music, sfx: s.sfx, muted: s.muted, quality: s.quality, fast: s.fast, custom: s.custom, renderScale: s.renderScale }),
       onRehydrateStorage: () => (s) => {
         if (!s) return

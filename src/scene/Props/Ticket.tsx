@@ -77,7 +77,7 @@ export async function drawTicket(win: Win): Promise<CanvasTexture> {
   g.fillText('Nº ' + win.serial, 0, 20)
   g.font = '400 30px Inter, sans-serif'
   g.fillStyle = '#9a7a46'
-  g.fillText('ADMIT ONE · GRAND DRAW', 0, 90)
+  g.fillText('ADMIT ONE · LUCKY SPIN', 0, 90)
   g.restore()
 
   // body
@@ -85,7 +85,7 @@ export async function drawTicket(win: Win): Promise<CanvasTexture> {
   g.textAlign = 'center'
   g.fillStyle = '#6e4a17'
   g.font = '600 44px Inter, sans-serif'
-  spaced(g, (win.title || 'GRAND DRAW').toUpperCase(), cx, 170, 12)
+  spaced(g, (win.title || 'LUCKY SPIN').toUpperCase(), cx, 170, 12)
   // ornament
   g.strokeStyle = '#b8893b'
   g.lineWidth = 3

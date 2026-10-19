@@ -10,7 +10,7 @@ import { audio } from '../audio/audioManager'
 
 const CharacterPreview = lazy(() => import('./CharacterPreview'))
 
-const KEY = 'grand-draw:onboarded'
+const KEY = 'lucky-spin:onboarded'
 
 function seen() {
   try {
@@ -21,7 +21,7 @@ function seen() {
 }
 
 const STEPS = [
-  { title: 'Welcome to GRAND DRAW', body: 'A few quick steps to make the stage yours: graphics check, background, host and music. Skip at any time.' },
+  { title: 'Welcome to Lucky Spin', body: 'A few quick steps to make the stage yours: graphics check, background, host and music. Skip at any time.' },
   { title: 'Graphics check', body: 'The show runs on your graphics card. If something below is red, follow the steps, then reload.' },
   { title: 'Stage background', body: 'The picture hanging behind the stage (logo, event banner). A landscape image around 1920 × 1080 looks best.' },
   { title: 'Host', body: 'Pick who carries the ballot box and runs the draw. Have your own model pack (.zip)? Upload it here.' },

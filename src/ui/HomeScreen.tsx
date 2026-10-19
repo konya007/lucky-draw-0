@@ -13,7 +13,7 @@ export function HomeScreen() {
   return (
     <div className={`fixed inset-0 z-20 flex flex-col items-center justify-center transition-opacity duration-700 ${visible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
       <div className="text-[10px] tracking-[0.6em] text-paper/60 uppercase">Gala night · lucky draw</div>
-      <h1 className="mt-3 text-center font-serif text-[clamp(2.2rem,7vw,5rem)] tracking-[0.3em] text-paper drop-shadow-[0_0_30px_rgba(255,220,160,0.25)]">{title || 'GRAND DRAW'}</h1>
+      <h1 className="mt-3 text-center font-serif text-[clamp(2.2rem,7vw,5rem)] tracking-[0.3em] text-paper drop-shadow-[0_0_30px_rgba(255,220,160,0.25)]">{title || 'LUCKY SPIN'}</h1>
       <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row">
         <button
           type="button"
