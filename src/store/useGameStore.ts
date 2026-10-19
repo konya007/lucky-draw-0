@@ -116,7 +116,7 @@ export const useGameStore = create<GameState>()(
       phase: 'EDITING',
       hostState: 'offstage',
       text: '',
-      title: 'GRAND DRAW',
+      title: 'LUCKY SPIN',
       removeWinners: true,
       history: [],
       absent: [],
@@ -214,7 +214,7 @@ export const useGameStore = create<GameState>()(
       },
     }),
     {
-      name: 'grand-draw:game',
+      name: 'lucky-spin:game',
       // v2: the fox became the main host — move existing saves to it once
       version: 2,
       migrate: (persisted, version) => {
